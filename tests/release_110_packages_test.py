@@ -6,7 +6,7 @@ sys.path.insert(0,str(ROOT/'tools'))
 import fm1_install as I
 import fm1pkg_make as M
 import lz4blk
-base=Path(sys.argv[1]).resolve() if len(sys.argv)>1 else ROOT/'web/install';allpins=json.loads((base/'manifest.json').read_text())
+base=ROOT/'web/install';allpins=json.loads((base/'manifest.json').read_text())
 for model in ['pro','elite']:
  pins=allpins[model];name=pins['model'].encode();apps=[]
  for kind in ['release','update']:

@@ -1,0 +1,50 @@
+name: SMKLIVE - experimental update build
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Exact keyboard model (never interchange packages)
+        type: choice
+        options: [pro, elite]
+        required: true
+      sdk_repository:
+        description: Official AC79 SDK Git HTTPS URL
+        type: string
+        required: true
+      sdk_ref:
+        description: Git tag, branch or commit containing reference SDK V1.2.1
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native regression gate
+        run: sh tests/run_smklive_tests.sh
+      - name: Install dependencies and original toolchain
+        run: |
+          python3 -m pip install Pillow
+          sh tools/get_toolchain.sh
+      - name: Obtain reference SDK
+        env:
+          SDK_URL: ${{ inputs.sdk_repository }}
+          SDK_REF: ${{ inputs.sdk_ref }}
+        run: |
+          case "$SDK_URL" in https://*) ;; *) echo 'Use the official HTTPS URL'; exit 2;; esac
+          git init "$RUNNER_TEMP/ac79-sdk"
+          git -C "$RUNNER_TEMP/ac79-sdk" remote add origin "$SDK_URL"
+          git -C "$RUNNER_TEMP/ac79-sdk" fetch --depth=1 origin "$SDK_REF"
+          git -C "$RUNNER_TEMP/ac79-sdk" checkout --detach FETCH_HEAD
+      - name: Build bank-preserving update
+        env:
+          LIVE_MODEL: ${{ inputs.model }}
+        run: AC79_SDK="$RUNNER_TEMP/ac79-sdk" ./build-live.sh "$LIVE_MODEL"
+      - name: Upload experimental firmware only after build checks
+        uses: actions/upload-artifact@v4
+        with:
+          name: SMKLIVE-experimental-${{ inputs.model }}
+          path: build/smklive-package/*
+          if-no-files-found: error

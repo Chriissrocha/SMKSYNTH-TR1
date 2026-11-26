@@ -89,6 +89,9 @@ static void smk_panel_panic(void)
     smk_pedal.blocked = smk_pedal.down || smk_pedal.candidate;
     smk_pedal.down = 0;
     memset(kb_press, 0, sizeof kb_press); memset(kb_refs, 0, sizeof kb_refs);
+#if SMK_LIVE
+    live_zone_learn=0;memset(live_midi_note,0,sizeof live_midi_note);
+#endif
     memset(panel_live_note, 0, sizeof panel_live_note);
     memset(transpose_captured, 0, sizeof transpose_captured);
     for (unsigned t=0;t<NTRK;t++) for (unsigned w=0;w<4;w++) ctl_live_hold[t][w]=0;

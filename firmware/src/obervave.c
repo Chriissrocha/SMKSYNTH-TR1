@@ -14,6 +14,18 @@
  *   this file       the panel, MIDI, the screen, the storage
  *
  * Integers only (no FPU, no 64-bit division); tests/host.c runs this on a computer. */
+/* Opt-in SMK Live profile. Original build and archived tests remain available. */
+#ifndef SMK_LIVE
+#define SMK_LIVE 0
+#endif
+#if SMK_LIVE
+#define APP_NAME "SMKLIVE"
+static unsigned live_badge_dirty;
+/* Flag only writes intersecting the indicator. No extra LCD work on other strips. */
+#define LIVE_LCD_TOUCH(x,y,w,h) do { if ((x)+(w)>174u && (y)+(h)>222u) live_badge_dirty=1; } while(0)
+#else
+#define LIVE_LCD_TOUCH(x,y,w,h) ((void)0)
+#endif
 static volatile unsigned smk_controller_active;
 #define SMK_CONTROLLER_ACTIVE smk_controller_active
 static void app_idle(void);
@@ -148,7 +160,7 @@ static int32_t step_held = -1;                  /* the step whose white key is h
 static uint32_t step_held_t, step_turned, step_midi, toast_t;
 static uint8_t audition[SEQ_CHORD], audition_part;   /* the held step's notes sounding (stopped: you hear what you hold) */
 static const char *toast;
-static int is_seq_page(uint32_t pg) { return pg == PG_SEQ || pg == PG_DSEQ; }
+static int is_seq_page(uint32_t pg) { return !SMK_LIVE && (pg == PG_SEQ || pg == PG_DSEQ); }
 /* the full-screen sequencer's views (SEQ tapped steps through the first three; SAVE tapped there: PATTERNS) */
 enum { SV_TRACKS, SV_STEPS, SV_MORE, SV_TRACK, SV_SLOTS, SV_TRANSPOSE, SV_ENDLESS, NSV };   /* TRACKS first: A-D one under the other (SLOOP) */
 static const char *const SV_NAME[NSV] = {"TRACKS", "STEPS", "STEP+", "TRACK", "PATTERNS", "TRANSPOSE", "ENDLESS"};
@@ -283,6 +295,7 @@ static void trk_load(uint32_t t, uint32_t n)    /* track t: program n */
     patch_t p;
     t %= NTRK; n %= NPROG;
     prog_get(n, &p);
+    if(SMK_LIVE)obv_patch_sanitize(&p);
     if (!t) fx_keep(&p);                        /* (track A: the effects stay) */
     live_p[t] = p;
     trk_prog[t] = n;
@@ -300,10 +313,19 @@ static int panel_octave(void){
 #endif
 }
 static uint32_t keyboard_physical;
-#if BOARD_SMK37
-/* Session-only semitone transpose for the physical synth keyboard. No saved
- * record changes; MIDI input and the independent MIDI MODE stay absolute. */
-static int32_t panel_transpose;
+#if SMK_LIVE && BOARD_SMK37
+static int live_transpose; /* semitones, volatile session setting, not written to presets */
+static unsigned live_shift,live_shift_used,live_shift_t;
+/* Volatile live zone configuration: no change to existing flash records. */
+static uint8_t live_zone_mode,live_zone_mask=1,live_zone_low[NTRK]={0,0,0,0},live_zone_high[NTRK]={127,127,127,127};
+static uint8_t live_zone_learn; /* 1..4 low, 5..8 high */
+static int live_zone_editing(void);
+static void live_zone_turn(unsigned knob,int delta);
+static void live_zone_draw(void);
+static uint8_t live_midi_note[NTRK][128]; /* +1; note-off uses the original destination */
+static void live_transpose_set(int semitones);
+#else
+#define live_shift 0
 #endif
 static int keyboard_base_octave(void){
 #if BOARD_SMK37
@@ -329,7 +351,7 @@ static void play_note(uint32_t on, uint32_t note, uint32_t vel)
     note_event_p(note_part[note], on, note, vel);
 }
 typedef struct {uint8_t part,note,combined;} kb_route_t;
-typedef struct {kb_route_t route[2];uint8_t count,rec_on,rec_part,rec_note;} kb_press_t;
+typedef struct {kb_route_t route[SMK_LIVE?NTRK:2];uint8_t count,rec_on,rec_part,rec_note;} kb_press_t;
 static kb_press_t kb_press[128];
 static uint8_t kb_refs[NTRK][128],kb_edit_oct,kb_pad_down,kb_pad_first,kb_edit_row;
 static uint32_t keyboard_bypass;
@@ -341,15 +363,22 @@ static void keyboard_play_note(uint32_t on,uint32_t note,uint32_t vel){
  if(!on){fm1_irq_on();return;}
  keyboard_cfg_t k=*keyboard_live(&pat);
  unsigned active=keyboard_active()?(pat.keyboard_selected+1u):0u,n=active?2u:1u;
+#if SMK_LIVE && BOARD_SMK37
+ unsigned zones=live_zone_mode&&!keyboard_bypass;
+ if(zones){n=NTRK;active=0;}
+#endif
  for(unsigned i=0;i<n;i++){
   unsigned part=active?k.part[i]:seq_trk%NTRK;
   if(active&&k.mode==KB_SPLIT&&((note<k.split)!=(i==0)))continue;
+#if SMK_LIVE && BOARD_SMK37
+  if(zones){part=i;if(!(live_zone_mask&(1u<<i))||note<live_zone_low[i]||note>live_zone_high[i])continue;}
+#endif
   int pitch=(int)note+(active?k.octave[i]*12:0);
 #if BOARD_SMK37
-  if(keyboard_physical){
-   pitch+=12*patch_keyboard_octave(&live_p[part]);
-   if(obv_patch_engine(&live_p[part])==OBV_ANALOG)pitch+=panel_transpose;
-  }
+  if(keyboard_physical)pitch+=12*(patch_keyboard_octave(&live_p[part]));
+#endif
+#if SMK_LIVE && BOARD_SMK37
+  pitch+=live_transpose;
 #endif
   if(pitch<0||pitch>127)continue;
   if(!kb_refs[part][pitch]&&!keyboard_event(part,1,(unsigned)pitch,vel,active))continue;
@@ -367,7 +396,7 @@ static int keyboard_input_pitch(uint32_t raw,uint32_t *pitch){
 static uint8_t keyboard_stored_pitch(unsigned t,unsigned heard){
  return (uint8_t)clampi((int32_t)heard-(obv_patch_engine(&live_p[t])==OBV_DRUMS?0:pat.trk[t].transp),1,127);
 }
-static int performance_transpose_control(void){return page==PG_PERFORM&&!layer&&transpose_keys;}
+static int performance_transpose_control(void){return !SMK_LIVE&&page==PG_PERFORM&&!layer&&transpose_keys;}
 static void transpose_keys_set(uint32_t on){
  transpose_keys=(uint8_t)!!on;
  /* Notes captured before OFF still own their note-offs; offset stays latched. */
@@ -590,7 +619,7 @@ static void load_pattern(uint32_t n)            /* stopped: pattern n with its s
     if (psnd[n].magic == PSN2_MAGIC) {
         patch_t nx[NTRK];
         snd_target(n, nx);
-        for (t = 0; t < NTRK; t++) live_p[t] = nx[t];
+        for (t = 0; t < NTRK; t++) {if(SMK_LIVE)obv_patch_sanitize(&nx[t]);live_p[t] = nx[t];}
     }
     snd_meta(n);
     memset(seq_cur, 0, sizeof seq_cur); memset(seq_pg, 0, sizeof seq_pg);
@@ -934,6 +963,7 @@ static void randomize(void)
 /* ---- the screen (obv_ui.h draws; this decides what and when) */
 #include "obv_ui.h"
 #if BOARD_SMK37
+static unsigned zm_live;
 #include "smk_midi_layout.h"
 #endif
 
@@ -1040,7 +1070,7 @@ static void draw_header(void)
         tags[n]='A'+keyboard_live(&pat)->part[0];tags[n+1]='+';tags[n+2]='A'+keyboard_live(&pat)->part[1];tags[n+3]=0;
         scat(tags," REC ");n=slen(tags);tags[n]='A'+seq_trk;tags[n+1]=0;
     }
-    if(perf_drum_bank()){tags[0]=0;scat(tags,obv_drums_selected()?"B4 DRUM PADS":"B4 INACTIVE");}
+    if(perf_drum_bank()){tags[0]=0;scat(tags,SMK_LIVE?"LIVE FX PADS":obv_drums_selected()?"B4 DRUM PADS":"B4 INACTIVE");}
     ui_header(ed_prog(), ed_patch(0)->v + NPARAM, ed_edited(), tags, seq_trk, perf_header_slot());
         return;
     }
@@ -1069,7 +1099,7 @@ static void draw_header(void)
         tags[n]='A'+keyboard_live(&pat)->part[0];tags[n+1]='+';tags[n+2]='A'+keyboard_live(&pat)->part[1];tags[n+3]=0;
         scat(tags," REC ");n=slen(tags);tags[n]='A'+seq_trk;tags[n+1]=0;
     }
-    if(perf_drum_bank()){tags[0]=0;scat(tags,obv_drums_selected()?"B4 DRUM PADS":"B4 INACTIVE");}
+    if(perf_drum_bank()){tags[0]=0;scat(tags,SMK_LIVE?"LIVE FX PADS":obv_drums_selected()?"B4 DRUM PADS":"B4 INACTIVE");}
     ui_header(ed_prog(), ed_patch(0)->v + NPARAM, ed_edited(), tags, seq_trk, perf_header_slot());
 }
 
@@ -1126,7 +1156,7 @@ static void layer_knob(knob_view_t *k, uint32_t i)
     static const char *const LE[4] = {"SHIFT", "LENGTH", "TRANSP", ""};
     static const int8_t FXP[4] = {P_CHO_MIX, P_DLY_MIX, P_REV_MIX, P_DLY_TIME};
     k->present = 0;
-    if (layer == L_EDIT && i < 3u) {
+    if (!SMK_LIVE && layer == L_EDIT && i < 3u) {
         k->present = 1; k->label = LE[i]; k->v = 0; k->max = 1;
         if(i==2u&&obv_drums_selected()){k->label="MAP";scat(k->value,"FIXED");}
         else if (i == 1) { fmt_u(k->value, pat.trk[seq_trk].len); scat(k->value, " x2 1/2"); }
@@ -1176,6 +1206,9 @@ static void draw_page(void)
 #if BOARD_SMK37
     if(page==PG_TEMPO&&!layer){su3_tempo_draw();return;}
     if(page==PG_INITIALIZE&&!layer){su2_init_draw();return;}
+    #if SMK_LIVE
+    if(page==PG_KEYBOARD&&!layer&&live_zone_editing()){live_zone_draw();return;}
+#endif
     if(page==PG_KEYBOARD&&!layer&&zm_zoom){su2_keyboard_draw();return;}
     if(page==PG_THEME&&!layer){zm_theme_draw();return;}
     if(page==PG_MIDI&&!layer){mui_entry_draw();return;}
@@ -1291,7 +1324,7 @@ static void draw_page(void)
         if(page==PG_KEYBOARD&&!layer)t=kb_edit_oct?"KEYBOARD OCTAVES":"KEYBOARD LEVELS";
         if(obv_drums_selected() && (page==PG_PERFORM||page==PG_VOICE))t="DRUM PERFORMANCE";
         if(perf_drum_bank()&&!layer&&page==PG_DSOUND)t=obv_drums_selected()?"DRUM PADS":"DRUM PADS / INACTIVE";
-        if (layer == L_EDIT) { title[0] = 0; scat(title, "EDIT "); title[5] = TRK_L[seq_trk % NTRK]; title[6] = 0; scat(title, ": ERASE"); t = title; }
+        if (layer == L_EDIT) { title[0] = 0; scat(title, "EDIT "); title[5] = TRK_L[seq_trk % NTRK]; title[6] = 0; scat(title, SMK_LIVE?": SOUND":": ERASE"); t = title; }
         else if (page == PG_MIXER && !layer) t = mix_row == 0u ? "MIXER  LEVEL" : mix_row == 1u ? "MIXER  PAN" : mix_row == 2u ? "SEND  CHORUS" : mix_row == 3u ? "SEND  DELAY" : mix_row == 4u ? "SEND  REVERB" : mix_row == 5u ? "SEND  DRIVE" : "MASTER";
         else if (layer == L_GLO) t = "GLO: MUTE SOLO TAP";
         else if (layer == L_SAVE) t = "SAVE: PATTERNS";
@@ -1591,11 +1624,12 @@ static void mix_solo(uint32_t t)
  * records), 5-8 mute them, 9-12 solo them, the last (G5) taps the tempo */
 static void trk_launch(uint32_t t);
 static void trk_record(uint32_t t);
+static void trk_select(uint32_t t);
 static void glo_key(uint32_t k)
 {
     static char msg[16];
     int32_t s2 = KEY_STEP[k];
-    if (s2 >= 0 && s2 < 4) { if (rec) trk_record((uint32_t)s2); else trk_launch((uint32_t)s2); }
+    if (s2 >= 0 && s2 < 4) { if(SMK_LIVE)trk_select((uint32_t)s2);else if (rec) trk_record((uint32_t)s2); else trk_launch((uint32_t)s2); }
     else if (s2 >= 4 && s2 < 8) mix_mute((uint32_t)(s2 - 4));
     else if (s2 >= 8 && s2 < 12) mix_solo((uint32_t)(s2 - 8));
     else if (s2 == 15) {                        /* tap tempo: the mean of the last taps */
@@ -2235,6 +2269,14 @@ static void draw_seq_knobs(void)
 /* the keys and MIDI in: read by the main loop, and while the screen is drawn (app_idle, notes only), so the notes
  * of a chord or among a stream of CCs are not held up by a redraw (a knob page is ~30 ms on the SPI alone) */
 static uint32_t dirty_hdr = 1, dirty_page = 1, dirty_tags = 1, dirty_steps = 1;
+#if SMK_LIVE && BOARD_SMK37
+static void live_transpose_set(int semitones){
+ int next=clampi(semitones,-12,12);
+ if(next==live_transpose)return;
+ live_transpose=next;live_badge_dirty=1;
+ dirty_hdr=dirty_page=dirty_tags=dirty_steps=1;
+}
+#endif
 static uint32_t keys_prev, clk_n, clk_t0, clk_last, idle_ok;
 static uint8_t held_key[27], key_step[27];
 static int notes_shown(void) { return seq_shown() || rec; }   /* the only screens a note changes */
@@ -2244,10 +2286,19 @@ static void note_in(uint32_t on, uint32_t note, uint32_t vel)
 {
     uint32_t t;
     note &= 127u;
-    if(endless_note(on,note,vel))return;
+    if(!SMK_LIVE&&endless_note(on,note,vel))return;
     unsigned had_pen=panel_live_note[note]==1u;
     if(!on && transpose_captured[note]){transpose_captured[note]=0;return;}
-    if(on && transpose_keys && !layer){
+#if SMK_LIVE && BOARD_SMK37
+    if(on&&keyboard_physical&&live_zone_learn&&live_zone_editing()&&page==PG_KEYBOARD&&!layer){
+      unsigned part=(live_zone_learn-1u)%NTRK;
+      if(panel_live_note[note]){keyboard_play_note(0,note,0);panel_live_note[note]=0;if(had_pen&&notes_down)notes_down--;}
+      if(live_zone_learn<=4u)live_zone_low[part]=(uint8_t)clampi(note,0,live_zone_high[part]);
+      else live_zone_high[part]=(uint8_t)clampi(note,live_zone_low[part],127);
+      live_zone_learn=0;live_zone_mode=1;live_zone_mask|=1u<<part;transpose_captured[note]=1;dirty_page=dirty_hdr=dirty_tags=dirty_steps=1;return;
+    }
+#endif
+    if(!SMK_LIVE && on && transpose_keys && !layer){
         /* A repeated key that previously played live must release its old owner. */
         if(panel_live_note[note]){keyboard_play_note(0,note,0);panel_live_note[note]=0;
             for(t=0;t<NTRK;t++)ctl_live_hold[t][note>>5]&=~(1u<<(note&31u));
@@ -2297,21 +2348,6 @@ static uint32_t perf_pattern_bank(void) { return 0; }
 static uint32_t perf_drum_bank(void) { return 0; }
 #endif
 
-#if BOARD_SMK37
-/* Only the performance screen owns SCALE+OCT. Other pages retain their
- * original SCALE actions and EDIT/SEQ layers retain undo/redo/page controls. */
-static int smk_transpose_buttons(uint32_t pressed,uint32_t held){
- const uint32_t oct=3u<<BTN_OCT_DOWN;
- static char msg[24];
- if(page!=PG_PERFORM||layer||mm_on||save_ui_active()||!(held&(1u<<BTN_SEL))||!(pressed&oct))return 0;
- if((held&oct)==oct)panel_transpose=0;
- else panel_transpose=clampi(panel_transpose+(pressed&(1u<<BTN_OCT_UP)?1:-1),-12,12);
- msg[0]=0;scat(msg,"TRANSPOSE ");fmt_s(msg+slen(msg),panel_transpose);
- say(msg);hints_key=0xFFFFFFFFu;
- return 1;
-}
-#endif
-
 static uint32_t cycle_page(uint32_t first, uint32_t count)   /* a button steps through its pages */
 {
     if (page >= first && page < first + count) return first + (page - first + 1u) % count;
@@ -2323,7 +2359,7 @@ static void keys_in(uint32_t notes_only)
     uint32_t keys = fm1_in.notes, down = keys & ~keys_prev, up = keys_prev & ~keys, base = (uint32_t)(KEY0 + 12 * keyboard_base_octave()), k;
     for (k = 0; k < 27u; k++) {             /* the keys by layer: EDIT erases, SEQ steps, GLO mix, SAVE patterns; else notes */
         if (down >> k & 1u) {
-            uint32_t ks = layer == L_EDIT ? 2u : steps_on() ? 1u : layer == L_GLO ? 3u : layer == L_SAVE ? 4u : 0u;
+            uint32_t ks = !SMK_LIVE&&layer == L_EDIT ? 2u : !SMK_LIVE&&steps_on() ? 1u : layer == L_GLO ? 3u : layer == L_SAVE ? 4u : 0u;
             if (notes_only && ks) continue;     /* not a note: the main loop's (its bit stays new) */
             keys_prev |= 1u << k;
             held_key[k] = (uint8_t)(base + k);
@@ -2407,7 +2443,7 @@ static void midi_in(uint32_t notes_only)
         }
         if (st == 0xFAu || st == 0xFBu) {   /* start / continue: the arp and the sequencer from the top */
             ctl_arp_restart = 1; clk_n = 0;
-            ctl_seq_restart = 1; ctl_seq_run = 1;
+            if(!SMK_LIVE){ctl_seq_restart = 1; ctl_seq_run = 1;}
             dirty_tags = dirty_steps = 1;
             continue;
         }
@@ -2419,8 +2455,16 @@ static void midi_in(uint32_t notes_only)
         }
         if (set.midi_ch && ch > set.midi_ch && ch < set.midi_ch + NTRK) {   /* the next three channels: tracks B-D */
             uint32_t t = ch - set.midi_ch;
+#if SMK_LIVE && BOARD_SMK37
+            if (kind == 0x90u || kind == 0x80u) {
+                unsigned raw=d1&127u;uint8_t *owner=&live_midi_note[t][raw];
+                if(*owner){unsigned old=*owner;*owner=0;unsigned still=0;for(unsigned n=0;n<128;n++)if(live_midi_note[t][n]==old){still=1;break;}if(!still)note_event_p(t,0,old-1u,0);}
+                if(kind==0x90u&&d2){int pitch=(int)raw+live_transpose;if(pitch>=0&&pitch<=127){unsigned dest=(unsigned)pitch+1u,shared=0;for(unsigned n=0;n<128;n++)if(live_midi_note[t][n]==dest){shared=1;break;}*owner=(uint8_t)dest;if(!shared)note_event_p(t,1,(unsigned)pitch,d2);}}
+            }
+#else
             if (kind == 0x90u && d2) note_event_p(t, 1, d1, d2);
             else if (kind == 0x80u || kind == 0x90u) note_event_p(t, 0, d1, 0);
+#endif
             else if (kind == 0xC0u && d1 < NPROG) { trk_load(t, d1); dirty_hdr = dirty_page = dirty_tags = dirty_steps = 1; }
             else if (kind == 0xB0u && cc_map[d1]) {
                 uint32_t p = cc_map[d1] - 1u;
@@ -2587,6 +2631,12 @@ static void panel_encoders(void)
     uint32_t control_context = smk_control_context();
 #endif
     obv_context_refresh();
+#if SMK_LIVE && BOARD_SMK37
+    if(live_shift&&!preset_ui&&!pb_confirm&&(fm1_in.buttons&(1u<<BTN_SEQ))){
+        e=fm1_enc_take(ENC_KNOB1);
+        if(e){live_shift_used=1;live_transpose_set(live_transpose+clampi(e,-24,24));}
+    }
+#endif
 #if BOARD_SMK37
     if((e=fm1_enc_take(ENC_SELECT))!=0)su3_tempo_turn(e);
     if(preset_ui||pb_confirm){for(unsigned i=0;i<8;i++){int e=fm1_enc_take(i);if(preset_ui==1&&e)preset_turn(i,e);}return;}
@@ -2630,7 +2680,11 @@ static void panel_encoders(void)
                 else {unsigned id=o?P_O2_PW:P_O1_PW;set_param(id,(int32_t)p->v[id]+e*2);auto_rec(id);}
                 dirty_hdr=1;
             }else if(k==3u&&performance_transpose_control()){transpose_keys_set(e>0);dirty_hdr=dirty_steps=1;}
-            else if(page==PG_KEYBOARD&&!layer){keyboard_turn(k,e);dirty_hdr=1;}
+            else if(page==PG_KEYBOARD&&!layer){
+#if SMK_LIVE
+                if(live_zone_editing())live_zone_turn(k,e);else
+#endif
+                keyboard_turn(k,e);dirty_hdr=1;}
             else if(page==PG_DSOUND && obv_drums_selected() && !layer){
                 uint32_t t=seq_trk%NTRK,l=drum_ui_lane[t]%8u;
                 if(!k)drum_ui_lane[t]=(uint8_t)clampi((int32_t)l+(e>0?1:-1),0,7);
@@ -2638,7 +2692,7 @@ static void panel_encoders(void)
                     set_param(p,(int32_t)live_p[t].v[p]+e*(k==3?1:2));auto_rec(p);}
             } else if(page==PG_ENGINE && !layer && k<2u) {
                 uint32_t t=seq_trk%NTRK,id=obv_patch_engine(&live_p[t]);
-                if(!k){uint32_t next=e>0?OBV_DRUMS:OBV_ANALOG;
+                if(!k){uint32_t next=!SMK_LIVE&&e>0?OBV_DRUMS:OBV_ANALOG;
                     if(next!=id){if(next==OBV_DRUMS)obv_drums_choose(t,0);else obv_analog_choose(t);}}
                 else if(id==OBV_DRUMS){uint32_t n=(uint32_t)clampi((int32_t)live_p[t].v[73]+(e>0?1:-1),0,NDRUMKIT-1);obv_drums_choose(t,n);}
                 dirty_hdr=dirty_tags=1;
@@ -2664,7 +2718,7 @@ static void panel_encoders(void)
                 if(!k)su2_init_turn(e);
             } else if (page == PG_THEME && !layer) {
 #if BOARD_SMK37
-                if(!k){zm_theme_set(e>0);dirty_hdr=dirty_tags=dirty_steps=1;}
+                if(!k){zm_theme_set(SMK_LIVE?(unsigned)clampi((int)zm_theme_index()+(e>0?1:-1),0,2):(unsigned)(e>0));dirty_hdr=dirty_tags=dirty_steps=1;}
 #endif
             } else if (page == PG_CONTROLS && !layer) {
 #if BOARD_SMK37
@@ -2684,7 +2738,8 @@ static void panel_encoders(void)
                 seq_view_turn(k, e);
                 dirty_steps = 1;
             } else if (layer == L_EDIT) {
-                edit_turn(k, e);
+                if(!SMK_LIVE)edit_turn(k, e);
+                else layer_used=1;
                 dirty_steps = 1;
             } else if (layer == L_FX) {
                 static const int8_t FXP[4] = {P_CHO_MIX, P_DLY_MIX, P_REV_MIX, P_DLY_TIME};
@@ -2717,8 +2772,19 @@ static void panel_encoders(void)
 #endif
 static void app_main(void)
 {
+#if defined(SMK_SIM_STEP)
+    static uint32_t sim_app_ready;
+    static
+#endif
     uint32_t k, i, t_led = 0, t_scope = 0, t_page = 0, t_hdr = 0, leds_q = 1;
+#if defined(SMK_SIM_STEP)
+    static
+#endif
     uint32_t swap_seen = 0, leds_prev = 0xFFFFFFFFu, glow = 0, glow_prev = 0xFFFFFFFFu, t_steps = 0, ticks_seen = 0;
+#if defined(SMK_SIM_STEP)
+    static uint32_t smk_control_seen;
+    if(!sim_app_ready){sim_app_ready=1;
+#endif
     rnd = 0xC0FFEE42u;
 #if BOARD_SMK37
     smk_pad_events = 1;                         /* the pads are OberVave's step pads (obv_smk.h), not notes */
@@ -2808,19 +2874,34 @@ static void app_main(void)
 #endif
     scope_state = 1;
 #if BOARD_SMK37
+#if defined(SMK_SIM_STEP)
+    smk_control_seen = smk_control_context();
+#else
     uint32_t smk_control_seen = smk_control_context();
 #endif
+#endif
 
+#if defined(SMK_SIM_STEP)
+    }
+    do {
+#else
     for (;;) {
+#endif
         uint32_t rel, b, lit = 0, base = (uint32_t)(KEY0 + 12 * keyboard_base_octave()), np = page;
+#if !defined(SMK_SIM_STEP)
         platform_poll();
+#endif
 #if BOARD_SMK37
         if(smk_battery_poll()){dirty_hdr=dirty_page=1;end_ui_seen=0;if(mm_on)mm_full_dirty();}
         mm_service();
-        if(mm_on){mm_poll();continue;}
+        if(mm_on){
+#if SMK_LIVE
+            live_shift=live_shift_used=0;
+#endif
+            mm_poll();continue;}
         if(mm_wait_release){uint32_t rel;fm1_input_edges(&rel);while(smk_pad_take()>=0){}while(smk_extkey_take()>=0){}for(unsigned e=0;e<8;e++)fm1_enc_take(e);mm_discard_midi();if(mm_return_poll())continue;leds_prev=glow_prev=0xFFFFFFFFu;leds_q=hints_key=0xFFFFFFFFu;}
 #endif
-        endless_poll();
+        if(!SMK_LIVE)endless_poll();
 #if OBV_VOICE_HW && !defined(OBV_HOST)
         b1_ready=1;
         static unsigned b1_shown;
@@ -2869,7 +2950,11 @@ static void app_main(void)
         if(pb_confirm&&(b>>BTN_HOME&1u)){pb_cancel();b&=~(1u<<BTN_HOME);}
         b=save_button_poll(b,rel);
         b=pf_home_poll(b,rel);
+#if SMK_LIVE
+        b=live_buttons(b,&rel);
+#else
         if(b>>BTN_SEQ&1u)pf_seq_mode=1;
+#endif
 #endif
         if (b & ~(1u << BTN_SAVE)) pat_save_armed = 0;   /* (SAVE PATTERN?: any other button says no) */
         {
@@ -2929,11 +3014,7 @@ static void app_main(void)
 #endif
         ctl_click = set.click % NCLICK == CLICK_ON || (rec == REC_ON && set.click % NCLICK != CLICK_OFF);
         if (b & (3u << BTN_OCT_DOWN)) {
-#if BOARD_SMK37
-            if (smk_transpose_buttons(b,fm1_in.buttons)) { /* SCALE + OCT: semitone transpose */ }
-            else
-#endif
-            if (layer == L_EDIT) {              /* EDIT + OCT- / OCT+: undo / redo (one level: a swap) */
+            if (!SMK_LIVE&&layer == L_EDIT) {              /* EDIT + OCT- / OCT+: undo / redo (one level: a swap) */
                 if (undo_ok) { pattern_t tmp = pat; pat = undo_pat; undo_pat = tmp; endless_recall(); pat_edited = 1; say(b & (1u << BTN_OCT_DOWN) ? "UNDO" : "REDO"); }
                 else say("NOTHING TO UNDO");
                 layer_used = 1;
@@ -2958,7 +3039,7 @@ static void app_main(void)
             else if (layer_lock) { layer = L_NONE; layer_lock = 0; dirty_page = dirty_steps = dirty_tags = 1; leds_q = 0xFFFFFFFFu; }
             else if (page == PG_PERFORM) {
 #if BOARD_SMK37
-                if(!zm_scope){zm_scope=1;zm_focus_on=0;dirty_hdr=dirty_page=dirty_steps=1;scope_state=1;}else{zm_scope=0;zm_focus_on=0;np=PG_MIXER;mix_row=0;}
+                if(SMK_LIVE&&zm_live){np=PG_MIXER;mix_row=0;}else if(!zm_scope){zm_scope=1;zm_focus_on=0;dirty_hdr=dirty_page=dirty_steps=1;scope_state=1;}else{zm_scope=0;zm_focus_on=0;np=PG_MIXER;mix_row=0;}
 #else
                 np=PG_MIXER;mix_row=0;
 #endif
@@ -2983,8 +3064,8 @@ static void app_main(void)
             if (page == PG_ARP) { hold ^= 1u << (seq_trk % NTRK); ctl_hold = hold; dirty_tags = 1; }   /* on its page: the panel's sound's HOLD */
             else np = PG_ARP;
         }
-        if ((b & (1u << BTN_PLAY)) && end_record) endless_finish();
-        if (b & (1u << BTN_PLAY)) {             /* start from step 1 / stop (a take ends with it) */
+        if (!SMK_LIVE && (b & (1u << BTN_PLAY)) && end_record) endless_finish();
+        if (!SMK_LIVE && (b & (1u << BTN_PLAY))) {             /* start from step 1 / stop (a take ends with it) */
             if (ctl_seq_run) { if(end_mode)endless_stop();else{ctl_seq_run = 0; rec = REC_OFF; rec_wait = 0;} }   /* (the stop ends REC, armed too: the pads start / stop again) */
             else {
                 if (rec == REC_READY) { rec = REC_ON; undo_save(); ctl_count = set.click % NCLICK == CLICK_COUNT; }
@@ -2992,14 +3073,14 @@ static void app_main(void)
             }
             dirty_tags = dirty_steps = 1;
         }
-        if (b & (1u << BTN_REC)) { rec_down = 1; rec_down_t = fm1_ms; }   /* REC acts when let go; held 1.2 s it clears the track */
-        if (rec_down && fm1_ms - rec_down_t > 1200u) {
+        if (!SMK_LIVE && (b & (1u << BTN_REC))) { rec_down = 1; rec_down_t = fm1_ms; }   /* REC acts when let go; held 1.2 s it clears the track */
+        if (!SMK_LIVE && rec_down && fm1_ms - rec_down_t > 1200u) {
             trk_clear();
             if(endless_screen()&&endless_enabled(&pat.trk[seq_trk])){endless_finish();pat.trk[seq_trk].len=0;seq_cursor_set(seq_trk,0);}
             rec_down = 0;
             leds_q = 0xFFFFFFFFu;
         }
-        if (rel & (1u << BTN_REC) && rec_down) {
+        if (!SMK_LIVE && (rel & (1u << BTN_REC)) && rec_down) {
             if (fm1_ms - rec_down_t < 500u) {   /* a press: playing, record now / stop recording; stopped, arm */
                 if(endless_screen())endless_record_toggle();
                 else if (rec) rec = REC_OFF;
@@ -3119,7 +3200,11 @@ static void app_main(void)
             fm1_led_key(BTN_OCT_UP, lit >> 30 & 1u);
             fm1_led_key(BTN_REC, lit >> 31 & 1u);
         }
+#if SMK_LIVE && BOARD_SMK37
+        fm1_led_key(BTN_SEQ, live_shift||perf_drum_bank());
+#else
         fm1_led_key(BTN_SEQ, seq_shown());
+#endif
         fm1_led_key(BTN_HOME, page == PG_PERFORM);
         fm1_led_key(BTN_EDIT, (page >= PG_OSC1 && page <= PG_FILTER2)||page==PG_SUB||page==PG_SUPER||page==PG_VOWELS||page==PG_VTONE||page==PG_DKIT||page==PG_DSOUND);
         fm1_led_key(BTN_ENV, page == PG_FENV || page == PG_AENV);
@@ -3370,6 +3455,12 @@ static void app_main(void)
         }
         su3_ui_poll();
         su2_ui_poll();
+#if SMK_LIVE && BOARD_SMK37
+        live_badge_poll();
+#endif
     }
+#if defined(SMK_SIM_STEP)
+    while(0);
+#endif
 }
 

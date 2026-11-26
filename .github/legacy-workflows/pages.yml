@@ -1,0 +1,29 @@
+name: Publish website manually
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: smksynth-publication
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - run: python3 tools/package_release.py build/public-site
+      - run: python3 tools/check_public_web.py build/public-site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/public-site
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

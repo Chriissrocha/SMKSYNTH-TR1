@@ -4,6 +4,8 @@
  * bytes in the existing dual-CRC map envelope; profile and bank ABI unchanged. */
 #pragma once
 static unsigned zm_zoom,zm_scope,zm_theme_pending,zm_theme_t;
+static unsigned zm_theme_index(void){return SMK_LIVE&&zm_live?2u:!!zm_zoom;}
+static unsigned zm_theme_bits(void){return (zm_zoom?1u:0u)|(ctl_pattern_tempo<<1)|(SMK_LIVE&&zm_live?4u:0u);}
 static unsigned zm_focus_knob;
 static void zm_mark_dirty(void);
 static void zm_save_draw(unsigned mode,unsigned waiting,unsigned left);
@@ -11,8 +13,17 @@ static void zm_focus_capture(unsigned k,int p);
 static uint32_t zm_focus_t,zm_focus_on,zm_footer_t,zm_footer_hash,zm_scope_t,zm_display_owner;
 static char zm_focus_label[24],zm_focus_value[32];
 static void zm_copy(char*d,const char*s,unsigned cap){unsigned i=0;while(i+1<cap&&s[i]){d[i]=s[i];i++;}d[i]=0;}
-static void zm_boot(void){zm_zoom=mm_data.reserved[0]==0x5Au&&(mm_data.reserved[1]&1u)&&mm_data.reserved[1]<=3u;ctl_pattern_tempo=mm_data.reserved[0]==0x5Au&&mm_data.reserved[1]<=3u?(mm_data.reserved[1]>>1)&1u:0u;zm_scope=zm_theme_pending=zm_focus_on=0;}
-static void zm_theme_set(unsigned zoom){if(zm_zoom==!!zoom)return;zm_zoom=!!zoom;mm_data.reserved[0]=0x5A;mm_data.reserved[1]=(uint8_t)(zm_zoom|(ctl_pattern_tempo<<1));zm_theme_pending=1;zm_theme_t=fm1_ms;zm_focus_on=0;}
+static void zm_boot(void){
+ unsigned bits=mm_data.reserved[1],valid=mm_data.reserved[0]==0x5Au&&bits<=(SMK_LIVE?7u:3u);
+ zm_live=SMK_LIVE&&(!valid||(bits&4u));zm_zoom=zm_live||(valid&&(bits&1u));ctl_pattern_tempo=valid?(bits>>1)&1u:0u;
+ zm_scope=zm_theme_pending=zm_focus_on=0;
+}
+static void zm_theme_set(unsigned theme){
+ if(theme>(SMK_LIVE?2u:1u))theme=1;
+ if(zm_theme_index()==theme)return;
+ zm_live=SMK_LIVE&&theme==2u;zm_zoom=theme!=0;zm_scope=zm_focus_on=0;
+ mm_data.reserved[0]=0x5A;mm_data.reserved[1]=(uint8_t)zm_theme_bits();zm_theme_pending=1;zm_theme_t=fm1_ms;
+}
 static uint32_t zm_hash(const void*p,unsigned n){uint32_t h=2166136261u;const uint8_t*b=p;while(n--)h=(h^*b++)*16777619u;return h;}
 /* Save ONLY the theme over the last committed maps. Never commit unsaved edits. */
 static void zm_theme_poll(void){
@@ -22,7 +33,7 @@ static void zm_theme_poll(void){
   for(unsigned i=0;i<4;i++)mm_default(&mm_verify.profile[i]);
  }
  unsigned seq=mm_data.seq+1u;if(!seq)seq=1;
- mm_verify.seq=seq;mm_verify.reserved[0]=0x5A;mm_verify.reserved[1]=(uint8_t)(zm_zoom|(ctl_pattern_tempo<<1));
+ mm_verify.seq=seq;mm_verify.reserved[0]=0x5A;mm_verify.reserved[1]=(uint8_t)zm_theme_bits();
  uint32_t h=zm_hash(&mm_verify,sizeof mm_verify);unsigned slot=mm_slot^1u;
  int bad=mm_store_save(slot,&mm_verify,sizeof mm_verify)||mm_store_load(slot,&mm_verify,sizeof mm_verify)||!mm_valid(&mm_verify)||zm_hash(&mm_verify,sizeof mm_verify)!=h;
  if(!bad){mm_data.seq=seq;mm_slot=slot;zm_theme_pending=0;}else {zm_theme_pending=2;zm_theme_t=fm1_ms;}
@@ -31,7 +42,11 @@ static void zm_theme_poll(void){
 static int zm_scope_active(void){return zm_scope&&page==PG_PERFORM&&!layer&&!mm_on;}
 static int zm_transpose_active(void){return zm_zoom&&page==PG_SEQ&&seq_view==SV_TRANSPOSE&&!layer;}
 static int zm_grid_active(void){return zm_zoom&&!is_seq_page(page)&&layer!=L_SEQ&&page!=PG_MIDI&&page!=PG_CONTROLS&&!mm_on;}
-static int zm_full(void){return (page==PG_THEME&&!layer)||zm_scope_active()||zm_grid_active()||zm_transpose_active();}
+static int zm_full(void){return
+#if SMK_LIVE
+ (page==PG_KEYBOARD&&!layer&&live_zone_editing())||
+#endif
+ (page==PG_THEME&&!layer)||zm_scope_active()||zm_grid_active()||zm_transpose_active();}
 static void zm_text(int x,int y,const char*s,unsigned size,uint16_t color){
  const felucca_font_t*f=size>=32?&FONT_L:&FONT_S;
  for(;*s;s++){
@@ -63,6 +78,8 @@ static void zm_cell(unsigned i,const knob_view_t*k){
  const char*label=k->label;unsigned size=24;while(size>16&&zm_width(label,size)>85)size-=2;
  zm_text(x+27,y+4,label,size,C_CREAM);zm_value(x+4,y+31,k->value,104,C_CREAM);
 }
+static uint32_t pf_bank(void);
+static uint16_t zm_live_accent(void){return RGB(170,255,74);}
 static void zm_head(const char*title,const char*sub,unsigned part){
  unsigned size=24;while(size>16&&zm_width(title,size)>195)size-=2;
  uint16_t c=part>='A'&&part<='D'?C_TRKC[part-'A']:C_AMBER;
@@ -71,7 +88,7 @@ static void zm_head(const char*title,const char*sub,unsigned part){
   char prog[4];memcpy(prog,sub,3);prog[3]=0;zm_text(8,31,prog,16,c);zm_text(8+(int)zm_width(prog,16),31,sub+3,16,C_DIMT);
  }else zm_text(8,31,sub,16,C_DIMT);
  smk_battery_icon(181,34);
- cv_rect(8,50,224,2,c);
+ cv_rect(8,50,224,2,zm_live?zm_live_accent():c);
 }
 static void zm_focus_named(const char*l,const char*v){if(!(zm_zoom||zm_scope_active())||is_seq_page(page)||layer)return;zm_focus_knob=0;zm_copy(zm_focus_label,l,sizeof zm_focus_label);zm_copy(zm_focus_value,v,sizeof zm_focus_value);zm_focus_t=fm1_ms;zm_focus_on=1;}
 static int zm_focus_visible(void){return zm_focus_on&&fm1_ms-zm_focus_t<1000u;}
@@ -80,7 +97,49 @@ static void zm_focus_draw(void){
  unsigned size=32;while(size>16&&zm_width(zm_focus_label,size)>190)size-=2;zm_center(120,82,zm_focus_label,size,C_AMBER);
  zm_value(27,125,zm_focus_value,186,C_CREAM);
 }
+/* LIVE: 240x240 stage display. Paint only the existing two strips and a
+ * small envelope meter; no FFT, extra framebuffer, or audio-thread work. */
+static void zm_live_footer(void){
+ const uint16_t accent=zm_live_accent(),bg=RGB(9,15,22),track=RGB(28,40,46);
+ cv_rect(0,200,240,40,bg);
+ for(unsigned i=0;i<NCARD;i++){
+  int32_t level=0;for(unsigned v=i;v<NV;v+=NCARD)if(ui_vlevel[v]>level)level=ui_vlevel[v];
+  unsigned n=(unsigned)clampi((level+2047)>>11,0,16);int x=8+(int)i*28;
+  cv_rect(x,203,24,16,track);if(n){cv_rect(x,219-(int)n,24,n,blend565(RGB(25,190,170),accent,n*16u));cv_rect(x,219-(int)n,24,1,C_CREAM);}
+ }
+ const char*hint=live_shift?"SEQ + K1 / < >":pf_bank()==4u?"LIVE FX / PADS":pf_bank()==5u?"4 PART ZONES":pf_bank()==3u?"SPLIT / LAYER":pf_bank()==2u?"SCENES":"PARTS / FAV";
+ zm_text(8,222,hint,16,live_shift?accent:C_DIMT);
+}
+static void zm_live_grid(const char*title,const knob_view_t*k){
+ const uint16_t bg=RGB(9,15,22),card=RGB(19,29,38),accent=zm_live_accent();
+ unsigned t=seq_trk%NTRK;char name[PATCH_NAME+1],num[8],line[36];
+ zm_name(name,ed_patch(0));mui_u3(num,ed_prog()+1u);
+ for(unsigned y=0;y<240;y+=120){mui_begin(y);cv_rect(0,0,240,240,bg);
+  zm_text(8,3,"LIVE",16,accent);zm_text(50,3,num,16,C_DIMT);
+  char part[2]={(char)('A'+t),0};cv_rect(207,2,25,24,C_TRKC[t]);zm_center(219,2,part,24,C_CREAM);
+  const char*head=page==PG_PERFORM?name:title;unsigned size=36;while(size>20&&zm_width(head,size)>224)size-=2;
+  zm_text(8,22,head,size,C_CREAM);
+  line[0]=0;if(page==PG_PERFORM){
+#if SMK_LIVE
+  if(live_zone_mode)scat(line,"ZONES");else
+#endif
+  scat(line,keyboard_active()?keyboard_live(&pat)->mode==KB_SPLIT?"SPLIT":"LAYER":"SINGLE");scat(line," / ");if(set.mix_mute&(1u<<t))scat(line,"MUTED");else{fmt_u(line+slen(line),set.tempo);scat(line," BPM");}}else{scat(line,name);scat(line," / ");scat(line,num);}
+  zm_text(8,59,line,16,C_DIMT);smk_battery_icon(207,59);cv_rect(8,78,224,2,accent);
+  for(unsigned i=0;i<4;i++){
+   int x=8+(i%2)*115,yy=85+(i/2)*57;cv_rect(x,yy,109,52,card);
+   if(!k[i].present){cv_rect(x,yy,109,1,RGB(28,40,46));continue;}
+   const char*label=k[i].label;unsigned ls=16;while(ls>12&&zm_width(label,ls)>80)ls-=2;
+   char key[3]={'K',(char)('1'+i),0};zm_text(x+4,yy+1,key,16,accent);zm_text(x+25,yy+1,label,ls,C_DIMT);
+   unsigned vs=30;while(vs>16&&zm_width(k[i].value,vs)>101)vs-=2;
+   zm_center(x+54,yy+19,k[i].value,vs,C_CREAM);
+   unsigned fill=k[i].max?(unsigned)clampi((int)(k[i].v*101/k[i].max),0,101):0;
+   if(fill)cv_rect(x+4,yy+49,fill,2,accent);app_idle();
+  }
+  zm_live_footer();if(zm_focus_visible())zm_focus_draw();mui_end(y);
+ }
+}
 static void zm_activity_body(void){
+ if(SMK_LIVE&&zm_live&&!layer){zm_live_footer();return;}
  if(su2_footer_body())return;
  uint16_t accent=C_RED;
  if(zm_transpose_active()){zm_text(8,222,"DRUM-X FIXED",16,C_AMBER);return;}
@@ -104,6 +163,7 @@ static void zm_scope_plot(void){
 }
 static void zm_grid(const char*title,const knob_view_t*k){
  if(zm_focus_knob&&zm_focus_visible()){unsigned i=zm_focus_knob-1;if(i<4&&k[i].present){zm_focus_label[0]='K';zm_focus_label[1]=(char)('1'+i);zm_focus_label[2]=' ';zm_copy(zm_focus_label+3,k[i].label,sizeof zm_focus_label-3);zm_copy(zm_focus_value,k[i].value,sizeof zm_focus_value);}}
+ if(SMK_LIVE&&zm_live&&!layer){zm_live_grid(title,k);return;}
  char name[PATCH_NAME+1],sub[40],num[12];zm_name(name,ed_patch(0));sub[0]=0;mui_u3(num,ed_prog()+1u);scat(sub,num);scat(sub," ");scat(sub,name);
  const char*head=title;
  if(page==PG_KEYBOARD){sub[0]=0;scat(sub,kb_edit_row?"EDIT 2 / PLAY ":"EDIT 1 / PLAY ");fmt_u(sub+slen(sub),pat.keyboard_selected+1u);}
@@ -125,4 +185,4 @@ static void zm_grid(const char*title,const knob_view_t*k){
  }
  if(zm_scope_active()){zm_scope_plot();zm_activity();}
 }
-static void zm_theme_draw(void){for(unsigned y=0;y<240;y+=120){mui_begin(y);zm_head("THEME",SMK_RELEASE_LABEL,'G');zm_center(120,65,"K1 THEME",24,C_AMBER);mui_knob(120,126,23,zm_zoom,1,C_AMBER,0);zm_center(120,171,zm_zoom?"ZOOM":"OBERVAVE",32,C_CREAM);zm_text(8,222,zm_theme_pending==2?"SAVE FAILED / RETRY":zm_theme_pending?"WAIT: STOP / RELEASE":APP_VER,16,C_DIMT);mui_end(y);}}
+static void zm_theme_draw(void){for(unsigned y=0;y<240;y+=120){mui_begin(y);zm_head("THEME",SMK_RELEASE_LABEL,'G');zm_center(120,65,"K1 THEME",24,C_AMBER);mui_knob(120,126,23,zm_theme_index(),SMK_LIVE?2u:1u,C_AMBER,0);zm_center(120,171,zm_live?"LIVE":zm_zoom?"ZOOM":"OBERVAVE",32,C_CREAM);zm_text(8,222,zm_theme_pending==2?"SAVE FAILED / RETRY":zm_theme_pending?"WAIT: STOP / RELEASE":APP_VER,16,C_DIMT);mui_end(y);}}

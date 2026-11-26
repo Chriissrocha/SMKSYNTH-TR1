@@ -11,7 +11,7 @@ static void zm_focus_capture(unsigned k,int p){
 static void zm_scope_rearm(void){unsigned best=0,level=0;for(unsigned v=0;v<NV;v++)if((unsigned)ui_vlevel[v]>level){level=ui_vlevel[v];best=ui_vnote[v];}if(level){uint32_t inc=pitch_inc((int32_t)best<<8),period=inc?0xFFFFFFFFu/inc:1000u;scope_stride=clampi((int32_t)(period*2u/SCOPE_N),1,64);}scope_state=1;}
 static int zm_display_poll(void){
  static unsigned scope_was;
- unsigned full=zm_full();uint32_t owner=full?1u+page+(layer<<8)+(zm_scope_active()<<12)+(zm_zoom<<13)+(zm_scope_active()?0u:((seq_trk%NTRK)<<14)+(set.pat<<16)):0u;
+ unsigned full=zm_full();uint32_t owner=full?1u+page+(layer<<8)+(zm_scope_active()<<12)+(zm_zoom<<13)+(zm_live<<22)+(zm_scope_active()?0u:((seq_trk%NTRK)<<14)+(set.pat<<16)):0u;
  if(owner!=zm_display_owner){zm_display_owner=owner;lcd_fill(0,0,240,240,C_PANEL);end_ui_seen=0;dirty_hdr=dirty_page=dirty_tags=dirty_steps=1;scope_state=1;zm_footer_hash=0;zm_scope_t=0;hints_key=0xFFFFFFFFu;}
  if(!full){scope_was=0;return 0;}
  if(zm_focus_on&&!zm_focus_visible()){zm_focus_on=0;dirty_page=1;}

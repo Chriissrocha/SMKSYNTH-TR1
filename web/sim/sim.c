@@ -36,6 +36,13 @@ static char *getenv(const char *n) { (void)n; return 0; }   /* (host.c's test sw
 
 #include "../../firmware/src/obervave.c"
 
+#ifdef SMK_SIM_STEP
+static uint32_t booted;
+/* The hardware loop is unchanged. On the browser only, app_main advances one
+ * iteration per millisecond; boot splash delay is fast-forwarded. */
+static void platform_poll(void){fm1_ms++;fm1_in.frames++;}
+static void sim_pass(void){app_main();booted=1;}
+#else
 /* ---- Asyncify (wasm-opt --asyncify): the main loop as a coroutine */
 __attribute__((import_module("asyncify"), import_name("start_unwind"))) void asyncify_start_unwind(void *p);
 __attribute__((import_module("asyncify"), import_name("stop_unwind"))) void asyncify_stop_unwind(void);
@@ -72,6 +79,7 @@ __attribute__((noinline)) static void sim_pass(void)   /* one pass of the main l
     asyncify_stop_unwind();
 }
 
+#endif
 /* ---- the clock: audio in the ISR's 256-frame blocks, the main loop every millisecond */
 #define SIM_MAXN 1024u
 static float out_l[SIM_MAXN], out_r[SIM_MAXN];
@@ -351,3 +359,25 @@ EXPORT uint32_t sim_midi_key_sent(uint32_t k){return k<37?mm_key_sent[k]:0;}
 
 EXPORT void sim_battery_raw(uint32_t raw){fm1_in.batt=(uint16_t)raw;}
 EXPORT uint32_t sim_battery_level(void){return smk_battery_level;}
+
+#if SMK_LIVE
+EXPORT int32_t sim_live_transpose(void){return live_transpose;}
+EXPORT uint32_t sim_live_zone_mode(void){return live_zone_mode;}
+EXPORT uint32_t sim_live_zone_mask(void){return live_zone_mask;}
+EXPORT uint32_t sim_live_zone_low(unsigned t){return live_zone_low[t%4];}
+EXPORT uint32_t sim_live_zone_high(unsigned t){return live_zone_high[t%4];}
+EXPORT uint32_t sim_live_zone_learn(void){return live_zone_learn;}
+EXPORT uint32_t sim_live_mix(unsigned t){return set.mix_lvl[t%4];}
+EXPORT uint32_t sim_live_fader_bank(void){return smk_bank;}
+EXPORT uint32_t sim_live_theme(void){return zm_theme_index();}
+EXPORT uint32_t sim_live_mute(void){return set.mix_mute;}
+EXPORT uint32_t sim_live_drive(unsigned t){return set.mix_drv[t%4];}
+EXPORT uint32_t sim_live_route_count(unsigned n){return kb_press[n%128].count;}
+EXPORT uint32_t sim_live_route_part(unsigned n,unsigned i){return kb_press[n%128].route[i%4].part;}
+EXPORT uint32_t sim_live_route_note(unsigned n,unsigned i){return kb_press[n%128].route[i%4].note;}
+EXPORT uint32_t sim_live_name(unsigned t,unsigned i){return live_p[t%4].v[NPARAM+i%PATCH_NAME];}
+EXPORT uint32_t sim_live_nv(void){return NV;}
+EXPORT uint32_t sim_live_patch_name_len(void){return PATCH_NAME;}
+EXPORT void sim_live_pedal(unsigned down){fm1_in.pedal=down?1023u:0u;}
+EXPORT uint32_t sim_live_drum_pool_bytes(void){return sizeof(obv_dhit_t)*NPART*8u;}
+#endif

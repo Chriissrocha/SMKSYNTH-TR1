@@ -13,7 +13,7 @@ static void mui_end(unsigned y){cv_oy=0;cv_blit(0,y);}
 static void mui_center(int x,int y,const felucca_font_t *f,const char *s,uint16_t c){cv_text(x-text_w(f,s)/2,y,f,s,c);}
 static void mui_border(int x,int y,int w,int h,uint16_t c){cv_rect(x,y,w,1,c);cv_rect(x,y+h-1,w,1,c);cv_rect(x,y,1,h,c);cv_rect(x+w-1,y,1,h,c);}
 static void mui_header(const char *title,int map){
- char s[12];cv_text(8,0,&FONT_L,title,C_CREAM);cv_rect(8,32,224,2,C_RED);
+ char s[12];cv_text(8,0,&FONT_L,title,C_CREAM);cv_rect(8,32,224,2,zm_live?RGB(170,255,74):C_RED);
  if(map){s[0]=0;scat(s,"MAP");fmt_u(s+3,mm_data.selected+1u);if(mm_dirty)scat(s,"*");cv_text(232-text_w(&FONT_S,s),9,&FONT_S,s,C_RED);}
 }
 static void mui_knob(int cx,int cy,int r,unsigned value,unsigned max,uint16_t color,int disabled){
@@ -77,7 +77,7 @@ static void mui_reset_draw(void){
 
 static void mui_edit_header(const char *name){
  char b[12];cv_text(8,0,&FONT_S,"MIDI EDIT",C_AMBER);b[0]=0;scat(b,"MAP");fmt_u(b+3,mm_data.selected+1u);if(mm_dirty)scat(b,"*");cv_text(232-text_w(&FONT_S,b),0,&FONT_S,b,C_RED);
- cv_text(8,14,&FONT_L,name,C_CREAM);cv_rect(8,48,224,2,C_RED);
+ cv_text(8,14,&FONT_L,name,C_CREAM);cv_rect(8,48,224,2,zm_live?RGB(170,255,74):C_RED);
 }
 static void mui_controls_draw(unsigned jump){
  for(unsigned y=0;y<240;y+=120){

@@ -1,0 +1,11 @@
+SMKLIVE native validation (host, not hardware)
+PASS: SMKLIVE modifier and K1, held-note routing, split/layer, 16 pads, FX, panic, retired engines/transport, ABI, recovery predicate, themes and indicator.
+PASS: illegal encoder trace, all Gray phases/directions and bounce; Attack isolation; JUMP/CATCH for all faders; mixer/FX/part/page/bank/recall/pattern rearm; relative encoders and context ownership; settings compatibility.
+PASS: per-part octave, physical routes, held notes across octave/part changes, layer additive offsets, preset/favorite/scene roundtrips, legacy0, record sizes unchanged.
+PASS: ten MIDI returns and ten PANIC resets preserve four patches and tuning with Vintage 0/32/80/127.
+PASS SU3: tempo metadata/save/copy; MASTER/PATTERN audio-boundary recall; legacy fallback; K5 on every synth page; init auto return; keyboard footer preservation; SUB/SUPER voices; Endless cache invalidation. PASS SU2: master real controls; six colored mixer pages; SINGLE actual-part identity; levels/octaves; Endless READY/play/REC; REC progress/abort/ack; init cancel/busy/target-change/execution; parts and manual flash preservation; INIT + basic DRUM-X, 16 empty steps per track.
+PASS: both pedal polarities, debounce, LAYER sustain, independent MIDI ownership, hard panic, queued onset discard, all 16 output channels, USB backpressure, pedal re-arm, panel chord and recovery. Host tests; physical validation pending.
+PASS: two-pad bank, SINGLE/SPLIT/LAYER, boundaries/octaves, exclusive live gain, same-pitch sequence isolation, sustain, REC selected-only, focus/setting releases, old/new patterns and scene bytes, queued restore, DRUM exclusion/hits, mono handoff, range safety.
+PASS: actual Perform/edit/mixer and every preset-save state differ only in part badge and header rule/preset number across four parts; fixed pattern badge and white-on-dark K1 label.
+PASS: MMIO/HAL source check
+BLOCKED: target JieLi toolchain/AC79 SDK not available; firmware package not generated.

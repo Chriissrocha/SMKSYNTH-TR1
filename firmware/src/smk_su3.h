@@ -12,7 +12,7 @@ static void su3_tempo_turn(int e){
 static void su3_source_set(unsigned source){
  source=!!source;if(source==ctl_pattern_tempo)return;ctl_pattern_tempo=source;
  if(source&&pattern_tempo(&pat)){set.tempo=(uint8_t)pattern_tempo(&pat);ctl_tempo=set.tempo;set_dirty=1;set_t=fm1_ms;}
- mm_data.reserved[0]=0x5A;mm_data.reserved[1]=(uint8_t)(zm_zoom|(source<<1));
+ mm_data.reserved[0]=0x5A;mm_data.reserved[1]=(uint8_t)zm_theme_bits();
  zm_theme_pending=1;zm_theme_t=fm1_ms;su2_redraw();
 }
 static void su3_tempo_draw(void){
@@ -20,7 +20,7 @@ static void su3_tempo_draw(void){
   zm_center(120,62,"K1 SOURCE",16,C_AMBER);zm_center(120,85,ctl_pattern_tempo?"PATTERN":"MASTER",32,C_CREAM);
   char s[24];s[0]=0;scat(s,"K5 ");su3_bpm_text(s+slen(s));zm_center(120,135,s,32,C_CREAM);
   s[0]=0;scat(s,"PATTERN: ");unsigned bpm=pattern_tempo(&pat);if(bpm){fmt_u(s+slen(s),bpm);scat(s," BPM");}else scat(s,"NO TEMPO");zm_center(120,182,s,16,C_DIMT);
-  zm_center(120,222,zm_theme_pending?"WAIT: STOP / RELEASE":"SAVE PATTERN TO STORE BPM",16,C_DIMT);mui_end(y);
+  if(SMK_LIVE)zm_text(8,222,zm_theme_pending?"WAIT / RELEASE":"SAVE SCENE BPM",16,C_DIMT);else zm_center(120,222,zm_theme_pending?"WAIT: STOP / RELEASE":"SAVE PATTERN TO STORE BPM",16,C_DIMT);mui_end(y);
  }
 }
 static void su3_ui_poll(void){

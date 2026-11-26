@@ -1,3 +1,9 @@
+> **SMKLIVE Stage Lab V2.1:** [guia do testador, MIDI, PC, GitHub Pages e instalador](SMKLIVE-V2.1-STAGE-LAB.md). [HTML do testador](web/smklive-tester/index.html). O firmware continua V2; pacote de hardware nao incluido.
+
+> **SMKLIVE experimental — código-fonte / source fork.**
+> [Guia SMKLIVE (PT-BR), controles, build e recuperação](SMKLIVE-LEIA-ME.md).
+> Os instaladores e documentos originais abaixo são históricos e não instalam SMKLIVE. Firmware de hardware ainda não validado.
+
 # SMKSYNTH
 
 **1.3.1 oficial — Endless MIDI.** Correção de estabilidade e primeiros ataques nas trocas de patterns. Mantidos todos os recursos da 1.3.0.

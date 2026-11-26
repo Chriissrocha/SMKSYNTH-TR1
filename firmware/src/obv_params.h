@@ -1,4 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+#ifndef SMK_LIVE
+#define SMK_LIVE 0
+#endif
 /* The parameter table: a patch is a byte per parameter plus a 10-character name. The UI, MIDI CC, the
  * randomizer and the storage all walk this table. */
 enum {

@@ -71,6 +71,9 @@ static uint16_t lcd_fillbuf[240];
 
 static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 {
+#ifdef LIVE_LCD_TOUCH
+    LIVE_LCD_TOUCH(x,y,w,h);
+#endif
     uint32_t i, n, k, sw;
     sw = (uint16_t)((c >> 8) | (c << 8));
     if (!w || !h || x >= 240u || y >= 240u)
@@ -93,6 +96,9 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px)
 {
+#ifdef LIVE_LCD_TOUCH
+    LIVE_LCD_TOUCH(x,y,w,h);
+#endif
     if (!w || !h)
         return;
     lcd_window(x, y, x + w - 1u, y + h - 1u);

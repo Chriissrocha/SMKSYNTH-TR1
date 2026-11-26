@@ -90,6 +90,9 @@ static uint32_t host_lcd_fills,host_lcd_blits,host_lcd_pixels,host_lcd_last_y,ho
 static void lcd_sync(void) {}
 static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 {
+#ifdef LIVE_LCD_TOUCH
+    LIVE_LCD_TOUCH(x,y,w,h);
+#endif
     uint32_t i, j;
     host_lcd_fills++;
     for (j = y; j < y + h && j < 240u; j++)
@@ -98,6 +101,9 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 }
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px)
 {
+#ifdef LIVE_LCD_TOUCH
+    LIVE_LCD_TOUCH(x,y,w,h);
+#endif
     uint32_t i, j;
     host_lcd_blits++;host_lcd_pixels+=w*h;host_lcd_last_y=y;host_lcd_last_h=h;
     for (j = 0; j < h; j++)

@@ -13,7 +13,7 @@ static unsigned su2_end_status(char*s){
 }
 static const char*su2_pad_name(void){switch(pf_bank()){
  case 1:return "PADS: STEPS";case 2:return "PADS: PATTERNS";
- case 3:return "PADS: SPLIT/LAYER";case 4:return "PADS: DRUM-X";
+ case 3:return "PADS: SPLIT/LAYER";case 4:return SMK_LIVE?"PADS: LIVE FX":"PADS: DRUM-X";
  default:return "PADS: PARTS/FAV";}}
 static void su2_dots(int x,int step,int y,int radius){
  for(unsigned i=0;i<NCARD;i++){
@@ -38,7 +38,7 @@ static int su2_footer_body(void){
  if(mm_on||layer||save_ui_active()||is_seq_page(page)||page==PG_INITIALIZE||page==PG_THEME||page==PG_TEMPO||(page==PG_KEYBOARD&&zm_zoom))return 0;
  if(page!=PG_PERFORM&&page!=PG_MIXER&&page!=PG_KEYBOARD&&page!=PG_ARP)return 0;
  if(!zm_zoom&&page==PG_MIXER&&!zm_scope_active())return 0;
- if(page==PG_KEYBOARD){cv_rect(0,200,240,40,C_PANEL);su2_dots(22,28,207,3);cv_rect(8,219,224,1,C_RULE);zm_text(8,223,su2_pad_name(),16,C_CREAM);su3_bpm_draw(232,223);return 1;}
+ if(page==PG_KEYBOARD){cv_rect(0,200,240,40,C_PANEL);su2_dots(22,28,207,3);cv_rect(8,219,224,1,C_RULE);zm_text(8,223,su2_pad_name(),16,C_CREAM);su3_bpm_draw(SMK_LIVE?169:232,223);return 1;}
  char status[32];unsigned active=su2_end_status(status);
  cv_rect(0,200,240,40,C_PANEL);
  if(zm_scope_active()){
@@ -48,7 +48,7 @@ static int su2_footer_body(void){
  }
  if(active){zm_text(8,200,status,16,active==2?C_RED:C_AMBER);su2_dots(142,12,207,3);}
  else su2_dots(22,28,207,3);
- cv_rect(8,219,224,1,C_RULE);zm_text(8,223,su2_pad_name(),16,C_CREAM);su3_bpm_draw(232,223);return 1;
+ cv_rect(8,219,224,1,C_RULE);zm_text(8,223,su2_pad_name(),16,C_CREAM);su3_bpm_draw(SMK_LIVE?169:232,223);return 1;
 }
 static void su2_mixer_colors(void){
  for(unsigned i=0;i<4;i++){int x=4+(i%2)*120,y=54+(i/2)*76;char l[2]={(char)('A'+i),0};
@@ -61,7 +61,7 @@ static void su2_keyboard_draw(void){
   char info[32],v[12];info[0]=0;scat(info,"EDIT");fmt_u(info+slen(info),kb_edit_row+1u);scat(info," / PLAY");fmt_u(info+slen(info),pat.keyboard_selected+1u);scat(info," ");
   unsigned n=slen(info);info[n]=(char)('A'+(combined?play->part[0]:seq_trk%NTRK));info[n+1]=0;
   if(combined){n=slen(info);info[n]='+';info[n+1]=(char)('A'+play->part[1]);info[n+2]=0;}
-  zm_text(8,33,info,16,C_DIMT);cv_rect(8,51,224,2,C_TRKC[seq_trk%NTRK]);
+  zm_text(8,33,info,16,C_DIMT);cv_rect(8,51,224,2,zm_live?zm_live_accent():C_TRKC[seq_trk%NTRK]);
   for(unsigned i=0;i<2;i++){
    /* SINGLE plays the selected part, NOT a remembered pair. When outside that
     * pair, show the actual live timbre separately instead of claiming it plays. */
@@ -78,7 +78,7 @@ static void su2_keyboard_draw(void){
    else{zm_text(92,yy+28,kl,16,C_DIMT);v[0]=0;if(kb_edit_oct)fmt_s(v,k->octave[i]);else{fmt_u(v,k->level[i]);scat(v,"%");}zm_text(174,yy+22,v,24,k->mode==KB_SINGLE?C_DIMT:C_CREAM);}
   }
   zm_text(8,175,"K4 SPLIT",16,C_DIMT);fmt_note(v,k->split);zm_text(152,166,v,32,k->mode==KB_SPLIT?C_CREAM:C_DIMT);
-  zm_text(8,202,"K5 TEMPO  < > LVL/OCT",16,C_AMBER);cv_rect(8,220,224,1,C_RULE);zm_text(8,223,su2_pad_name(),16,C_CREAM);su3_bpm_draw(232,223);mui_end(y);
+  zm_text(8,202,"K5 TEMPO  < > LVL/OCT",16,C_AMBER);cv_rect(8,220,224,1,C_RULE);zm_text(8,223,su2_pad_name(),16,C_CREAM);su3_bpm_draw(SMK_LIVE?169:232,223);mui_end(y);
  }
 }
 static void su2_cleared(void){su2_clear_t=fm1_ms|1u;su2_clear_part=seq_trk%NTRK;}
@@ -101,7 +101,7 @@ static void su2_init_execute(void){
    * Like stopped pattern recall, prepare the full pattern outside IRQ masks. */
   pat_init(&pat_q);pat=pat_q;end_mode=0;endless_reset();
   for(unsigned i=0;i<NTRK;i++){
-   patch_t p;patch_from_factory(&p,&FACT_INIT);if(i==3u)obv_drums_preset(&p,0);
+   patch_t p;patch_from_factory(&p,&FACT_INIT);if(!SMK_LIVE&&i==3u)obv_drums_preset(&p,0);
    p.v[P_ARP_MODE]=0;p.v[P_CHO_MIX]=p.v[P_DLY_MIX]=p.v[P_REV_MIX]=0;
    live_p[i]=p;trk_prog[i]=64;set.tprog[i]=64;trk_edited[i]=1;obv_park_valid[i]=0;pf_active[i]=255;
    set.mix_lvl[i]=100;set.mix_pan[i]=0;set.mix_cho[i]=set.mix_dly[i]=set.mix_rev[i]=set.mix_drv[i]=0;
@@ -146,11 +146,11 @@ static void su2_init_draw(void){
   else if(su2_init_stage==3){zm_center(120,79,su2_init_target?"PATTERN RESET":"PATCH RESET",24,C_CREAM);zm_center(120,119,"NOT SAVED",24,C_AMBER);zm_center(120,160,"SAVE TO KEEP",16,C_DIMT);}
   else{
    zm_center(120,60,su2_init_target?"PATTERN":"PART PATCH",24,C_CREAM);
-   if(su2_init_target){mui_u2(num,set.pat+1u);zm_center(120,91,num,40,C_AMBER);zm_center(120,139,"ALL 4 PARTS",24,C_CREAM);zm_center(120,170,"ALL SEQUENCES",16,C_RED);}
+   if(su2_init_target){mui_u2(num,set.pat+1u);zm_center(120,91,num,40,C_AMBER);zm_center(120,139,"ALL 4 PARTS",24,C_CREAM);zm_center(120,170,SMK_LIVE?"ALL SCENE DATA":"ALL SEQUENCES",16,C_RED);}
    else{line[0]=0;scat(line,"PART ");unsigned n=slen(line);line[n]=(char)('A'+t);line[n+1]=0;zm_center(120,91,line,32,C_TRKC[t]);zm_name(name,&live_p[t]);zm_center(120,132,name,24,C_CREAM);mui_u3(num,trk_prog[t]+1u);zm_center(120,161,num,16,C_TRKC[t]);}
    zm_center(120,188,su2_init_stage?(su2_init_choice?"K1 INITIALIZE":"K1 CANCEL"):"K1 TARGET",16,su2_init_stage&&su2_init_choice?C_RED:C_AMBER);
   }
-  zm_center(120,205,su2_init_stage==2?"PLEASE WAIT":su2_init_stage==3?"RETURNING TO PERFORM":su2_init_stage?"PLAY: CONFIRM":"PLAY: CONTINUE",16,C_CREAM);zm_center(120,223,su2_init_stage==2?"":su2_init_stage==3?"PATCH: PERFORM":su2_init_stage?"PATCH: CANCEL":"PATCH: EXIT",16,C_DIMT);mui_end(y);
+  zm_center(120,205,su2_init_stage==2?"PLEASE WAIT":su2_init_stage==3?"RETURNING TO PERFORM":su2_init_stage?"PLAY: CONFIRM":"PLAY: CONTINUE",16,C_CREAM);if(SMK_LIVE)zm_text(8,223,su2_init_stage==2?"":su2_init_stage==3?"PATCH: PERFORM":su2_init_stage?"PATCH: CANCEL":"PATCH: EXIT",16,C_DIMT);else zm_center(120,223,su2_init_stage==2?"":su2_init_stage==3?"PATCH: PERFORM":su2_init_stage?"PATCH: CANCEL":"PATCH: EXIT",16,C_DIMT);mui_end(y);
  }
 }
 static void su2_ui_poll(void){
@@ -158,7 +158,7 @@ static void su2_ui_poll(void){
  if(su2_init_stage==2u&&page==PG_INITIALIZE&&!ctl_panic&&engine_quiet()&&!notes_down&&!fm1_in.keys)su2_init_execute();
  if(fm1_ms-su2_ui_t<50u)return;su2_ui_t=fm1_ms;
  if(page==PG_INITIALIZE&&!layer)return;
- if(zm_zoom&&!layer&&!save_ui_active()&&(page==PG_PERFORM||page==PG_MIXER||page==PG_ARP))zm_activity();
+ if(zm_zoom&&!zm_live&&!layer&&!save_ui_active()&&(page==PG_PERFORM||page==PG_MIXER||page==PG_ARP))zm_activity();
  if(!zm_zoom&&(page==PG_PERFORM||page==PG_KEYBOARD||page==PG_ARP)&&!layer&&!save_ui_active()){cv_begin(240,40,C_PANEL);cv_oy=-200;su2_footer_body();cv_oy=0;cv_blit(0,200);}
  if(!zm_zoom&&page==PG_MIXER&&!layer&&!save_ui_active()){
   char s[32];unsigned en=su2_end_status(s);if(en){cv_begin(148,18,C_PANEL);cv_text(0,0,&FONT_S,s,en==2?C_RED:C_AMBER);cv_blit(54,22);}

@@ -219,7 +219,7 @@ static void pf_snapshot(pf_slot_t *v,uint32_t t) {
 }
 static void pf_recall(uint32_t i,uint32_t t) {
     if(!(pf_store.used>>i&1u)){pf_message("FAV EMPTY ",i+1u);return;}
-    const pf_slot_t *v=&pf_store.slot[i];patch_t p=v->patch;
+    const pf_slot_t *v=&pf_store.slot[i];patch_t p=v->patch;if(SMK_LIVE)obv_patch_sanitize(&p);
     if(!t)fx_keep(&p); /* preserve shared FX and their tails */
     smk_controls_epoch++;
     live_p[t]=p;trk_prog[t]=v->prog;trk_edited[t]=v->edited;set.tprog[t]=v->prog;
@@ -296,15 +296,18 @@ static uint16_t keyboard_pad_led(uint32_t p){
 static uint32_t pf_page_request;
 static void pf_nav(uint32_t bank){
  pf_seq_mode=0;pf_manual_seq=bank;pb_cancel();kb_pad_down=0;
+#if SMK_LIVE
+ live_zone_learn=0;
+#endif
  layer=L_NONE;layer_lock=0;step_held=-1;audition_off();entry_reset();
- pf_page_request=(bank==3u?PG_KEYBOARD:bank==4u?PG_DSOUND:PG_PERFORM)+1u;
+ pf_page_request=((bank==3u||(SMK_LIVE&&bank==5u))?PG_KEYBOARD:bank==4u&&!SMK_LIVE?PG_DSOUND:PG_PERFORM)+1u;
  pf_redraw();dirty_hdr=1;
 }
 static void pf_bank_poll(uint32_t b,uint32_t rel){
  if(b>>BTN_KNOB_BANK&1u){pf_bank_down=1;pf_bank_t=fm1_ms;pf_bank_held=0;}
  if(pf_bank_down&&(fm1_in.buttons>>BTN_KNOB_BANK&1u)&&fm1_ms-pf_bank_t>=700u&&!pf_bank_held){pf_nav(0);pf_bank_held=1;}
  if(rel>>BTN_KNOB_BANK&1u){
-  if(pf_bank_down&&!pf_bank_held){unsigned next=pf_seq_mode?0u:pf_manual_seq==0?3u:pf_manual_seq==3?2u:pf_manual_seq==2u&&obv_drums_selected()?4u:0u;pf_nav(next);say(next==4u?"PADS DRUM PADS":next==3u?"PADS SPLIT / LAYER":next==2u?"PADS PATTERNS / SAVE":"PADS PERFORMANCE / FAV");}
+  if(pf_bank_down&&!pf_bank_held){unsigned next=pf_seq_mode?0u:pf_manual_seq==0?3u:pf_manual_seq==3?2u:pf_manual_seq==2u&&(SMK_LIVE||obv_drums_selected())?4u:SMK_LIVE&&pf_manual_seq==4u?5u:0u;pf_nav(next);say(next==5u?"PADS 4 PART ZONES":next==4u?(SMK_LIVE?"PADS LIVE FX":"PADS DRUM PADS"):next==3u?"PADS SPLIT / LAYER":next==2u?"PADS PATTERNS / SAVE":"PADS PERFORMANCE / FAV");}
   pf_bank_down=0;pf_bank_held=0;
  }
 }

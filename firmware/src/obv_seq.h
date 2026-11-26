@@ -345,6 +345,7 @@ static void seq_tick(void)
 {
     uint32_t t, q=(end_mode||ctl_seq_run)?quarter_len():0, launch=0, offset=0;
     if(end_stop_request){end_stop_request=0;for(t=0;t<NTRK;t++){seq_from_top(t);ui_seq_pos[t]=ui_seq_frac[t]=0;}seq_was=0;}
+    if(SMK_LIVE){ctl_seq_run=ctl_seq_restart=ctl_count=0;return;}
     if(end_mode){
         if(end_clock_valid){
             end_clock_phase+=CTL;if(end_clock_phase>=q)end_clock_phase%=q;

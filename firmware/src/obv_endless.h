@@ -38,7 +38,7 @@ static void endless_mark_tracks(void){
  }
  fm1_irq_off();for(unsigned t=0;t<NTRK;t++){pat.trk[t].pad[0]=tag[t];pat.trk[t].pad[1]=gate[t];}fm1_irq_on();
 }
-static void endless_recall(void){endless_reset();endless_pattern_state(&pat);if(end_mode)endless_mark_tracks();}
+static void endless_recall(void){endless_reset();if(SMK_LIVE){end_mode=0;return;}endless_pattern_state(&pat);if(end_mode)endless_mark_tracks();}
 static int endless_enable(void){
  if(keyboard_active()){say("ENDLESS: USE SINGLE");return 0;}
  if(!end_mode){

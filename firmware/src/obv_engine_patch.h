@@ -19,7 +19,7 @@ static void obv_patch_set_engine(patch_t *p, uint32_t id)
 }
 /* Retired engine id 1 is never reused: old DRUMS tags remain id 2. */
 static int obv_patch_sanitize(patch_t*p){
- if(obv_patch_engine(p)!=OBV_VOICE)return 0;
+ if(obv_patch_engine(p)!=OBV_VOICE&&!(SMK_LIVE&&obv_patch_engine(p)==OBV_DRUMS))return 0;
  uint8_t fx[P_REV_MIX-P_CHO_RATE+1];
  for(unsigned i=0;i<sizeof fx;i++)fx[i]=p->v[P_CHO_RATE+i];
  patch_defaults(p);

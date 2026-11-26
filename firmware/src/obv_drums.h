@@ -13,7 +13,9 @@ static const uint8_t DP_PITCH[8]={P_LFO_PITCH,P_LFO_PWM,P_LFO_FLT,P_LFO_AMP,P_KE
 #define DP_LENGTH P_FENV_AMT
 #define DP_FOLD P_DRIVE
 typedef struct {dx_voice_t core;uint8_t velocity,kit;int32_t gain;} obv_dhit_t;
+#if !SMK_LIVE
 static obv_dhit_t drum_hit[NPART][8];
+#endif
 static volatile uint16_t drum_peak[NPART][8];
 static volatile uint32_t drum_stamp[NPART][8];
 static uint8_t drum_ui_lane[NPART];
@@ -23,6 +25,13 @@ static int drum_lane(uint32_t note)
     for(unsigned i=0;i<8;i++)if(DRUM_NOTE[i]==note)return (int)i;
     return -1;
 }
+#if SMK_LIVE
+/* No DSP hit pool or drum render/trigger functions in the Live build.
+ * Retain compact metadata for legacy records and old UI code. */
+static uint32_t drums_busy(uint32_t p){(void)p;return 0;}
+static void drums_reset(uint32_t p){(void)p;}
+static const obv_engine_ops_t obv_drums_ops={0};
+#else
 static uint32_t drums_busy(uint32_t p)
 {
     for(unsigned l=0;l<8;l++)if(drum_hit[p][l].core.active||drum_hit[p][l].core.trig)return 1;
@@ -103,6 +112,7 @@ static uint32_t drums_render_state(obv_dhit_t *hits, const uint8_t *v, volatile 
 static uint32_t drums_render(uint32_t p,int32_t *out)
 { return drums_render_state(drum_hit[p],live_p[p].v,drum_peak[p],out); }
 static const obv_engine_ops_t obv_drums_ops={"DRUMS",0,0,drums_trigger,drums_render,drums_reset,drums_busy};
+#endif
 static void obv_drums_preset(patch_t *p,uint32_t kit)
 {
     patch_defaults(p);kit%=NDRUMKIT;

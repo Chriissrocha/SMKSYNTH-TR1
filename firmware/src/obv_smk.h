@@ -76,6 +76,9 @@ static void smk_outer(uint32_t base, uint32_t notes_only, uint32_t *dirty);
 static int32_t smk_ext_back = -1;
 
 #include "obv_perf.h"
+#if SMK_LIVE
+#include "smk_live.h"
+#endif
 
 /* ---- the pads and the outer keys (main loop, after the keys) */
 static void smk_seq_pad_event(int32_t e,uint32_t *dirty)
@@ -138,7 +141,10 @@ static void smk_pads(uint32_t base, uint32_t *dirty)
     while ((e = smk_pad_take()) >= 0) {
         uint32_t p=((uint32_t)e>>8)&15u,vel=(uint32_t)e&255u;
         if(preset_ui)continue;
-        if(vel)pf_role[p]=pf_bank()==4u?(obv_drums_selected()&&p<8u?4u:6u):pf_bank()==3u?7u:obv_drums_selected()&&pf_bank()==1u&&!rec&&!layer?5u:(pf_bank()==1u&&drum_grid_shown())?(rec?(p<8u?4u:6u):5u):pf_bank()==1u?1u:pf_bank()==2u?3u:2u;
+        if(vel)pf_role[p]=SMK_LIVE&&pf_bank()==5u?9u:SMK_LIVE&&pf_bank()==4u?8u:pf_bank()==4u?(obv_drums_selected()&&p<8u?4u:6u):pf_bank()==3u?7u:obv_drums_selected()&&pf_bank()==1u&&!rec&&!layer?5u:(pf_bank()==1u&&drum_grid_shown())?(rec?(p<8u?4u:6u):5u):pf_bank()==1u?1u:pf_bank()==2u?3u:2u;
+        #if SMK_LIVE
+        if(pf_role[p]==9u){live_zone_pad(p,vel);*dirty=1;}else if(pf_role[p]==8u){live_pad_event(p,vel);*dirty=1;}else
+#endif
         if(pf_role[p]==7u){keyboard_pad(p,vel);*dirty=1;}
         else if(pf_role[p]==1u)smk_seq_pad_event(e,dirty);
         else if(pf_role[p]==2u)pf_event(p,vel);
@@ -168,14 +174,14 @@ static void smk_outer(uint32_t base, uint32_t notes_only, uint32_t *dirty)
         else if ((e = smk_extkey_take()) < 0) break;
         kk = ((uint32_t)e >> 8) % FM1_NKEY; vel = (uint32_t)e & 0xFFu;
         /* EDIT/undo belongs to the main loop. Preserve FIFO order behind the deferred event. */
-        if (notes_only && (vel ? layer == L_EDIT : smk_ext_note[kk] && smk_ext_erase[kk])) {
+        if (notes_only && (vel ? !SMK_LIVE&&layer == L_EDIT : smk_ext_note[kk] && smk_ext_erase[kk])) {
             smk_ext_back = e;
             break;
         }
         if (vel) {
             uint32_t n = (uint32_t)clampi((int32_t)base + (int32_t)kk - (int32_t)SMK_KEY_F3, 1, 127);
             smk_ext_note[kk] = (uint8_t)n;
-            smk_ext_erase[kk] = layer == L_EDIT;
+            smk_ext_erase[kk] = !SMK_LIVE&&layer == L_EDIT;
             if (smk_ext_erase[kk]) {
                 if (!layer_used) undo_save();
                 layer_used = 1;
@@ -205,9 +211,9 @@ static void smk_buttons(uint32_t b, uint32_t *dirty)
     uint32_t t = seq_trk, pg = seq_pg[t];
     if (b & (1u << BTN_FADER_BANK)) {
         uint32_t i;
-        smk_bank ^= 1u;
+        smk_bank=SMK_LIVE?(smk_bank+1u)%3u:(smk_bank^1u);
         for (i = 0; i < 4u; i++) smk_fad_last[i] = 0xFF;   /* a new bank: each fader waits until it moves */
-        smk_overlay(smk_bank ? "FADER BANK B" : "FADER BANK A",
+        if(SMK_LIVE&&smk_bank==2u){smk_overlay("FADER BANK C","PART VOLUMES A B C D");*dirty=1;dirty_hdr=dirty_page=1;}else smk_overlay(smk_bank ? "FADER BANK B" : "FADER BANK A",
                     smk_bank ? "CHO/DLY/REV SEND + MASTER" : (obv_drums_selected()?"MORPH TONE DECAY FOLD":"CUTOFF RESO ENV AMT RELEASE"));
     }
     if (b & ((1u << BTN_LEFT) | (1u << BTN_RIGHT))) {
@@ -244,17 +250,17 @@ static smk_fader_owner_t smk_fader_owner[4];
 static uint32_t smk_fader_value(unsigned i, unsigned p)
 {
     unsigned t=seq_trk%NTRK;
-    return !smk_bank ? ed_patch(p)->v[p] : i==0 ? set.mix_cho[t] : i==1 ? set.mix_dly[t] : i==2 ? set.mix_rev[t] : (uint32_t)smk_master;
+    return SMK_LIVE&&smk_bank==2u?set.mix_lvl[i]:!smk_bank ? ed_patch(p)->v[p] : i==0 ? set.mix_cho[t] : i==1 ? set.mix_dly[t] : i==2 ? set.mix_rev[t] : (uint32_t)smk_master;
 }
 static void smk_faders(uint32_t *dirty_page, uint32_t *dirty_hdr, uint32_t *dirty_tags)
 {
     static const uint8_t FP[4]={P_CUTOFF,P_RESO,P_FENV_AMT,P_AR};
-    static const char *const FN[2][4]={{"CUTOFF","RESO","ENV AMT","RELEASE"},{"CHO SEND","DLY SEND","REV SEND","MASTER"}};
+    static const char *const FN[3][4]={{"CUTOFF","RESO","ENV AMT","RELEASE"},{"CHO SEND","DLY SEND","REV SEND","MASTER"},{"VOL A","VOL B","VOL C","VOL D"}};
     static char l1[40],l2[32];
     uint32_t t=seq_trk%NTRK,context=smk_fader_context(),jump=!!smk_fader_jump();
     for(unsigned i=0;i<4;i++) {
         unsigned p=obv_drums_selected()&&i==3u?DP_FOLD:FP[i];
-        unsigned max=!smk_bank ? (unsigned)obv_param_max(ed_patch(p),p) : i==3 ? 1023u : 127u;
+        unsigned max=SMK_LIVE&&smk_bank==2u?127u:!smk_bank ? (unsigned)obv_param_max(ed_patch(p),p) : i==3 ? 1023u : 127u;
         unsigned value=smk_fader_value(i,p),v=fm1_in.fader[i],prev=smk_fad_last[i];
         unsigned target=(value*127u+max/2u)/max,waiting;
         smk_fader_owner_t *o=&smk_fader_owner[i];
@@ -280,7 +286,9 @@ static void smk_faders(uint32_t *dirty_page, uint32_t *dirty_hdr, uint32_t *dirt
 #endif
                 continue;
             }
-            if(!smk_bank) {
+            if(SMK_LIVE&&smk_bank==2u){
+                set.mix_lvl[i]=(uint8_t)v;mix_apply();set_dirty=1;set_t=fm1_ms;*dirty_page=*dirty_hdr=*dirty_tags=1;
+            }else if(!smk_bank) {
                 set_param(p,(int32_t)((v*max+63u)/127u));
                 if(p==P_CUTOFF)cut_shown_t=fm1_ms+1u;
                 *dirty_page=*dirty_hdr=1;
@@ -298,9 +306,9 @@ static void smk_faders(uint32_t *dirty_page, uint32_t *dirty_hdr, uint32_t *dirt
         }
         if(!smk_bank)param_value(val,p,ed_patch(p)->v[p]);
         else {fmt_u(val,((waiting?target:v)*100u+63u)/127u);scat(val,"%");}
-        l1[0]=0;scat(l1,smk_bank?"B":"A");fmt_u(l1+1,i+1u);scat(l1," ");
+        l1[0]=0;scat(l1,smk_bank==2u?"C":smk_bank?"B":"A");fmt_u(l1+1,i+1u);scat(l1," ");
         scat(l1,(!smk_bank&&obv_drums_selected())?obv_voice_label(p):FN[smk_bank][i]);
-        if(smk_bank&&i<3){char tr[3]={' ',TRK_L[t],0};scat(l1,tr);}
+        if(smk_bank==1u&&i<3){char tr[3]={' ',TRK_L[t],0};scat(l1,tr);}
         scat(l1,waiting?" CATCH ":" ");scat(l1,val);
         smk_bar(l2,v,127u);if(waiting){char focus[24]="CATCH ";zm_copy(focus+6,FN[smk_bank][i],sizeof focus-6);zm_focus_named(focus,val);}else zm_focus_named(FN[smk_bank][i],val);smk_overlay(l1,l2);
     }
@@ -381,10 +389,19 @@ static void smk_leds(void)
             if(ctl_seq_run&&n==ui_seq_pos[t])c=C_CREAM;
         }
         else if(pf_bank()==1u&&drum_grid_shown()&&rec&&p>=8u)c=0;
-        else if(pf_bank()==4u)c=drum_pad_led(p);
+        else if(pf_bank()==4u){
+#if SMK_LIVE
+            c=live_pad_color(p);
+#else
+            c=drum_pad_led(p);
+#endif
+        }
         else if(smk_drums_hits()&&p<8u)c=drum_pad_led(p);
         else if(pf_bank()==2u)c=pb_led(p);
         else if(pf_bank()==3u)c=keyboard_pad_led(p);
+#if SMK_LIVE
+        else if(pf_bank()==5u)c=live_zone_color(p);
+#endif
         padled_set(p, (uint8_t)((c >> 11) * 255u / 31u), (uint8_t)(((c >> 5) & 63u) * 255u / 63u), (uint8_t)((c & 31u) * 255u / 31u));
     }
     fm1_led_key(BTN_FADER_BANK, smk_bank != 0u);

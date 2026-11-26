@@ -649,6 +649,28 @@ static void splash_pads(uint32_t fade, int32_t x_to, uint32_t level)
 
 static void ui_splash(void)
 {
+#if SMK_LIVE && BOARD_SMK37
+    /* A seven-letter pixel logo; no new image asset or full framebuffer. */
+    static const uint8_t logo[7][7]={
+      {31,16,16,31,1,1,31},{17,27,21,21,17,17,17},{17,18,20,24,20,18,17},
+      {16,16,16,16,16,16,31},{31,4,4,4,4,4,31},{17,17,17,17,17,10,4},{31,16,16,30,16,16,31}};
+    uint32_t t0=fm1_ms;
+    lcd_fill(0,0,240,240,C_BLACK);
+    for(unsigned frame=0;frame<12;frame++){
+      cv_begin(240,112,C_BLACK);
+      for(unsigned i=0;i<7;i++)for(unsigned y=0;y<7;y++)for(unsigned x=0;x<5;x++)if(logo[i][y]&(16u>>x)){
+        uint16_t c=i<3?RGB(67,220,255):RGB(183,255,91);
+        cv_rect(17+i*30+x*5+2,19+y*7+3,5,7,RGB(30,48,65));
+        cv_rect(17+i*30+x*5,19+y*7,5,6,c);
+      }
+      cv_rect(20,89,200,3,RGB(26,52,72));cv_rect(20,89,(frame+1u)*200u/12u,3,RGB(183,255,91));
+      cv_blit(0,62);
+      while(fm1_ms-t0<100u*(frame+1u))platform_poll();
+    }
+    draw_text_box(0,188,240,&FONT_S,"STAGE / SYNTH",C_CREAM,1);
+    while(fm1_ms-t0<1600u)platform_poll();
+    lcd_fill(0,0,240,240,C_PANEL);return;
+#else
     /* the strike: dark, two short flashes, a dip, then it holds (per 40 ms frame, 0..256) */
     static const uint16_t STRIKE[12] = {0, 90, 20, 0, 200, 60, 30, 256, 180, 256, 256, 256};
     uint32_t t0 = fm1_ms, k;
@@ -678,4 +700,5 @@ static void ui_splash(void)
     while (fm1_ms - t0 < 2400u) platform_poll();
 #endif     /* it stands for a while: 2.4 s from power-on */
     lcd_fill(0, 0, 240, 240, C_PANEL);
+#endif
 }

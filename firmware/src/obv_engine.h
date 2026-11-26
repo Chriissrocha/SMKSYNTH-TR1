@@ -1189,8 +1189,8 @@ static void engine_init(void)
 #endif
     uint32_t v;
     obv_engines[OBV_VOICE] = 0; /* retired id, unavailable */
-    obv_engines[OBV_DRUMS] = &obv_drums_ops;
-    for(v=0;v<NPART;v++)drums_reset(v);
+    obv_engines[OBV_DRUMS] = SMK_LIVE?0:&obv_drums_ops;
+    if(!SMK_LIVE)for(v=0;v<NPART;v++)drums_reset(v);
     for (v = 0; v < NV; v++) {
         vc[v].seq_owned=0;
         obv_voice_engine[v] = OBV_ANALOG;
