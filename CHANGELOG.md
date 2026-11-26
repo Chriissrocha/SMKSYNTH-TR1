@@ -1,0 +1,156 @@
+# Changelog
+
+## 1.3.1 — Endless MIDI — 2026-11-23
+
+Correção de estabilidade nas trocas de patterns com BPMs diferentes, sincronismo do Endless e primeiro ataque ao trocar de engine. Corrigidos também o corte da primeira nota pela ativação do ARP, estouro aritmético no reverb e sobreposição de valores no Mixer Zoom. Promovida da PS3 aprovada; dados salvos e funcionalidades preservados.
+
+Maintenance fix for pattern-change stability, Endless alignment and first attacks across engine changes; also fixes ARP first-note cuts, reverb arithmetic overflow and Zoom Mixer popup stacking. Hardware-approved PS3 promoted; saved data and existing features preserved.
+
+[Notas](docs/RELEASE-1.3.1.md) · [English](docs/RELEASE-1.3.1.en.md)
+
+## 1.3.0 — Endless MIDI — 2026-11-22
+
+SUB OSC aditivo SQUARE/SAW na engine ANALOG dual-core. K5 controla o tempo em todas as telas do synth; BPM por pattern com MASTER/PATTERN. Zoom aprimorado, feedback REC, INITIALIZE com confirmação e retorno automático, e Master corrigido. Mantidos ENDLESS e MODO MIDI USB/TRS com canais e layers. Supersaw somente no OSC 1.
+
+- SUB OSC: PARA → OSC1 → OSC2 → SUB OSC. K1 SQUARE/SAWTOOTH; K3 LEVEL 0–100%; K4 -1/-2 OCT. Um componente por voz, sem reduzir OSC1/OSC2; patches antigos com SUB desligado.
+- K5: 40–240 BPM em todas as telas do synth; configurável no MODO MIDI. Split/Layer: < LEVEL, > OCT para K2/K3. BPM visível em Performance, Mixer, ARP e SEQ.
+- Patterns salvam BPM interno. GLOBE → TEMPO SOURCE: MASTER mantém o atual; PATTERN recupera o salvo. Legados sem BPM mantêm o atual; clock externo tem prioridade.
+- INITIALIZE: K1 alvo, PLAY revisão, K1 INITIALIZE e PLAY confirmação; PATCH cancela. Após executar, NOT SAVED por 2,2 s e volta à Performance. Pattern: INIT A/B/C, bateria básica DRUM-X D, níveis iguais, FX desligados, 16 steps vazios e SINGLE. Salvamento manual.
+- Zoom: Split/Layer identifica timbres, partes e pads sem apagar ao tocar. Mixer com cores das partes, status Endless READY/progresso, aviso ao segurar REC e vozes em SUB/SUPER. Corrigido redesenho do Endless na primeira gravação.
+- Master: volume, filtro, drive e compressor respondem imediatamente.
+- Mantidas as correções de afinação ao voltar do MODO MIDI e MIDI PANIC, USB/TRS, sustain e polifonia da SU3.
+
+Promovida da SU3 /19663 aprovada, com identificação pública 19664 para Pro/Elite. Atualização preserva dados; primeira instalação exige V016 do modelo e instala banco de fábrica. Transposição global em semitons fica para versão futura.
+
+[Notas](docs/RELEASE-1.3.0.md) · [English](docs/RELEASE-1.3.0.en.md)
+
+## 1.2.2 — Endless MIDI — 2026-11-15
+
+- **Correção mínima:** corrigida a falha de afinação em timbres com Vintage/Detune ao retornar do MODO MIDI. A mesma correção se aplica ao MIDI PANIC (GLOBE + PLAY).
+- **Minor fix:** fixed unintended tuning drift in Vintage/Detune patches after returning from MIDI MODE or using MIDI PANIC (GLOBE + PLAY).
+
+Mantidos os recursos da Endless MIDI e os dados salvos. Atualização direta da oficial 1.2.1 e da TF1 validada. Identidades: Pro_19655 / Elite_19655.
+
+[Notas](docs/RELEASE-1.2.2.md) · [English](docs/RELEASE-1.2.2.en.md)
+
+## 1.2.1 — Endless MIDI — 2026-11-15
+
+- **ENDLESS:** sequências de notas/acordes em quatro partes, com comprimentos independentes e MIDI USB/TRS por parte. PARA ativa/desativa sem apagar; REC grava; segurar REC apaga a parte. C4 mantém a afinação original. Abrir a página não inicia a execução.
+- **MODO MIDI:** controlador independente por USB e TRS/DIN. Banco A mantém pads configuráveis; banco B passa a selecionar os canais 1–16 do teclado. Um pad sozinho escolhe um canal. Mantenha um pad pressionado e toque outros para formar um layer; solte todos para manter a seleção. Um novo toque sozinho substitui o layer.
+- **Rodas e sustain:** teclado, pitch bend, mod wheel e pedal seguem todos os canais selecionados. Encoders, faders e pads A conservam seus canais de mapa. Note Off e pedal-off alcançam os destinos originais após trocas. A seleção B é temporária e volta ao canal principal ao entrar no modo ou trocar de mapa.
+- **Bateria e versão:** quatro faixas aproximadas nos dois temas; bateria baixa em vermelho e leitura indisponível em cinza. Nome Endless MIDI e número técnico na splash e em GLOBE > THEME.
+- **TRS independente do USB:** um host conectado que não consome MIDI não bloqueia mais o cabo. Se a fila USB exceder a capacidade, a retomada limpa notas antigas antes de aceitar novos gestos.
+
+Mantidos: tema Zoom opcional (Obervave padrão), osciloscópio dedicado, renomeação de presets, sustain com polaridade automática e MIDI PANIC com GLOBE + PLAY. **Supersaw somente no OSC 1 para preservar a estabilidade**, com limite de cinco vozes quando em uso. Sem Bluetooth MIDI e sem envio de MIDI Clock/Start/Stop nesta versão.
+
+**Atualização:** preserva o banco salvo, programas, patterns, favoritos, tema e mapas MIDI. Inclui atualização direta de ML1, ML1a e Endless MIDI A. Primeira instalação exige a V016 oficial do modelo e prepara o banco de fábrica. Exporte um backup antes; mapas MIDI e tema não estão no arquivo .smksynth. Identidades: Pro_19653 / Elite_19653.
+
+
+[Notas completas](docs/RELEASE-1.2.1.md) · [English](docs/RELEASE-1.2.1.en.md)
+
+## 1.2.0 — 2026-11-14
+
+- **ENDLESS integrado:** gravação por passos de notas/acordes, pausas, prolongamentos, direção e HOLD; quatro partes com comprimentos independentes. C4 é a referência de transposição. PARA ativa/desativa; abrir a página não ativa. REC entra na gravação; segurar REC apaga a parte. Notas também saem por USB e TRS/DIN, no canal de cada parte.
+- **MIDI MODE independente:** sintetizador silencioso e controlador USB/TRS com quatro mapas, canal principal e canais por controle, encoders ABS/REL com aceleração, faders, pads configuráveis e cores selecionáveis. Tudo editável no instrumento. Tela com controles, pads e teclado virtual de 37 teclas. Sem Bluetooth nesta versão.
+- **Tema Zoom opcional:** nomes e valores maiores; Obervave permanece padrão. Seleção em GLOBE > THEME, com salvamento automático em silêncio. Identificação por cor na linha, box da parte com letra branca e número do preset; indicador de pattern preservado na performance.
+- **Osciloscópio dedicado:** PATCH curto passa de valores de performance para logo/osciloscópio/atividade de vozes ou bateria; o próximo toque entra no Mixer. PATCH longo volta aos valores. Edições aparecem brevemente em Zoom sobre o osciloscópio.
+- **Nomes de presets:** save rápido com BT; BT longo abre nome e destino. K1 cursor, K2 caractere, K7 posição. O programa já salvo no destino fica visível. BT revisa, outro BT confirma; PATCH volta/cancela.
+- **Supersaw somente no OSC 1 para preservar a estabilidade**, com limite de cinco vozes quando SUPER está em uso e substituição de vozes em release. OSC 2 mantém as formas convencionais; programas de testes antigos com SUPER no OSC 2 são normalizados para SAW ao carregar.
+- **Correções:** retorno do MIDI MODE sem travamento ou modulação residual; atualização independente de faders, encoders, pads e notas; contraste dos indicadores K1–K4 e cores de partes ajustados.
+
+Mantidos: MIDI OUT USB/TRS nas quatro partes (teclas, pads, Split/Layer, ARP e sequenciadores), pitch bend/mod wheel na parte selecionada, sustain físico com polaridade automática ao ligar e MIDI PANIC com GLOBE + PLAY. Não há envio de MIDI Clock/Start/Stop ou Program Change automático. Áudio USB para gravação de vídeo no iPhone pode apresentar cliques/cortes.
+
+
+[Notas completas / Full release notes](docs/RELEASE-1.2.0.md) · [English](docs/RELEASE-1.2.0.en.md)
+
+## 1.1.0 - 2026-11-11
+
+
+## Português
+
+A 1.1.0 promove a MIDI M1.2 validada por Marcus no SMK-37 Pro e integra Pro e Elite no mesmo instalador. O caminho de instalação Elite também foi validado por um usuário real. A identificação automática escolhe um pacote específico para cada modelo; não é preciso selecionar ou baixar firmware manualmente.
+
+- **MIDI OUT USB e TRS/DIN:** teclas, pads, Split/Layer, arpejadores e sequenciadores transmitem as notas reais das quatro partes. GLOBAL MIDI CH define o canal-base de A (1-13); B-D usam os três seguintes. OMNI transmite em 1-4. DRUM-X usa o canal da própria parte. Cada Note Off conserva canal/nota de origem.
+- **Pitch bend e mod wheel:** enviados no canal da parte selecionada, inclusive em Split/Layer. Trocar de parte neutraliza o canal anterior; o estado físico é reenviado após Panic ou recuperação de fila. USB e TRS seguem o mesmo roteamento.
+- **Sustain físico:** conecte antes de ligar e mantenha solto na inicialização. Polaridade automática para pedal de chave, sem meio pedal. O sustain atende as quatro partes melódicas, com CC64 nos canais apropriados e liberação de canais antigos. Estados pendentes por canal evitam sustain preso durante soltura/reacionamento rápidos.
+- **MIDI PANIC:** GLOBE + PLAY para PLAY/REC, desliga HOLD/sustain, limpa notas pendentes e corta as vozes. USB/TRS enviam CC64=0, CC123=0 e CC120=0 aos 16 canais. Solte o pedal antes de reutilizá-lo; caudas dos efeitos podem terminar.
+- **Correção de notas presas:** vozes POLY/DUAL são liberadas corretamente após mudar para MONO/UNISON com teclas pressionadas. O Note Off já chegava; um retorno antecipado na engine impedia parte da liberação. Glide não mudou e sua alteração isolada não reproduziu a falha nos testes.
+- **Instalador único Pro / Elite:** primeira instalação exige V016 oficial do modelo conectado e inicializa o banco. Atualização preserva programas, favoritos, patterns e configurações salvas, inclusive das builds MIDI M1-M1.2 e de testes compatíveis. Exporte um backup antes. Retomadas antigas continuam nos instaladores preservados.
+
+Identidade de destino: `SMK-37 Pro_19634` ou `SMK-37 Elite_19634`. Cinco patterns e oito favoritos de fábrica mantidos. A ENDLESS permanece em ramo separado; seus recursos não estão nesta release. Atualizar preserva o banco salvo, mas para desfazer alterações feitas em outra linha é necessário restaurar o backup anterior.
+
+As sequências enviam notas, mas não há MIDI Clock/Start/Stop de saída nem Program Change automático ao trocar presets internos. A recepção de bend continua global no canal-base, herdada da engine; a saída de bend é por parte. Áudio USB 44,1/48 kHz mantido; cliques/cortes ao gravar vídeo no iPhone com áudio USB continuam como problema conhecido.
+
+Créditos: OberVave / zvenson e colaboradores; DRUM-X / JIANT; SUPER / Clipper / 3dSam; Felucca, Dinghy, SLOOP e port SMK-37. Driver TRS adaptado de M. Geisler (genkigenki/makkuro), via SLOOP / Tonitor, sob GPL-3.0-only. Veja CREDITS.md e LICENSING.md.
+
+## English
+
+1.1.0 promotes MIDI M1.2, hardware-validated by Marcus on SMK-37 Pro, and combines Pro and Elite in one installer. The Elite installation path was also validated by a real user. Automatic identification selects a model-specific package; no manual firmware selection is required.
+
+- USB and TRS/DIN output transmit all four parts: keys, pads, Split/Layer, ARP and sequencers. A uses GLOBAL MIDI CH base 1-13; B-D use the next channels. OMNI transmits 1-4. DRUM-X uses its part channel. Note Off retains the original channel and pitch.
+- Physical Pitch Bend and CC1 follow the selected part, including Split/Layer. Old channels are neutralized on focus changes; wheel state is resent after Panic/queue recovery.
+- Switch-pedal sustain detects polarity at startup. Connect before power-on, released. No half-pedal support. Sustain covers all melodic parts and releases previous channels correctly; pending CC64 values are independent per channel.
+- GLOBE + PLAY stops transport/REC, clears HOLD/sustain and pending notes, kills voices and sends CC64/123/120 off on all 16 channels. Release the pedal before reusing sustain. Effects tails may finish.
+- Fixed old POLY/DUAL voices remaining gated after a live change to MONO/UNISON. Glide is unchanged; Glide-only edits did not reproduce the bug in tests.
+- One installer identifies Pro or Elite and chooses first installation from model-specific stock V016, or a bank-preserving SMKSYNTH update. Export a backup first. Old interrupted installers are preserved.
+
+Target identities are `SMK-37 Pro_19634` and `SMK-37 Elite_19634`. Factory patterns/favourites are retained. ENDLESS remains separate. Sequence notes transmit; MIDI Clock/Start/Stop output and automatic preset Program Changes are not included. Incoming bend remains global on the base channel. USB audio remains supported; iPhone USB video clicks/dropouts remain a known issue. Original credits and GPL-3.0-only notices are preserved.
+
+
+## 1.0.3 — 2026-11-05
+
+SUPER chega aos dois osciladores da engine ANALOG: sete serras por oscilador, com DETUNE e MIX independentes. Na página OSC, PW passa a ser DETUNE ao escolher SUPER. PARA também acessa a página SUPER: K1 DET1, K2 MIX1, K3 DET2 e K4 MIX2.
+
+A origem da supersaw é o [Clipper, de 3dSam](https://github.com/isod89/clipper-fm1), sobre a plataforma Felucca. O Clipper referencia a análise do JP-8000 de Adam Szabo. O SMKSYNTH adapta sua curva e offsets de desafinação, acrescentando MIX independente, normalização e otimizações próprias. Os créditos e avisos GPL-3.0-only são preservados em [CREDITS](https://github.com/4t59m4f784-creator/SMKSYNTH/blob/main/CREDITS.md) e [LICENSING](https://github.com/4t59m4f784-creator/SMKSYNTH/blob/main/LICENSING.md).
+
+A versão pública promove a SS3, aprovada por Marcus no SMK-37 Pro após os testes de acordes com SUPER. As otimizações mantêm os resultados numéricos do DSP de referência. A polifonia continua sendo de oito vozes ANALOG compartilhadas; UNISON empilha vozes completas. SYNC e X-MOD são ignorados quando algum OSC usa SUPER. MIX é salvo em presets, favoritos, cenas e backups, sem CC/automação dedicados. DETUNE reaproveita PW e sua automação. Não é uma emulação exata do JP-8000/JP-8080.
+
+No instalador, **Atualizar** preserva o banco de SMKSYNTH 1.0.x ou SUPER SS1/SS2/SS3. Exporte um backup antes. **Instalar** inicializa o banco e exige o firmware oficial SMK-37 Pro V016. A identidade pública permanece `SMK-37 Pro_19618`. Se uma instalação antiga estiver interrompida, retome primeiro pelo instalador daquela versão. Firmware anterior à SUPER não interpreta seus novos sons; guarde um backup anterior para eventual retorno.
+
+Áudio USB da 1.0.2 mantido: estéreo, 16 bits, 44,1/48 kHz, testado no Mac e no iPhone com AudioShare. Problema conhecido: vídeos gravados com áudio USB no iPhone podem apresentar cliques e cortes.
+
+### English
+
+SUPER adds seven saws to each ANALOG oscillator, with independent DETUNE and MIX. Selecting SUPER turns PW into DETUNE. PARA opens the SUPER page: K1 DET1, K2 MIX1, K3 DET2, K4 MIX2.
+
+The supersaw originates in [Clipper by 3dSam](https://github.com/isod89/clipper-fm1), built on Felucca. Clipper cites Adam Szabo’s JP-8000 analysis. SMKSYNTH adapts its detune curve and offsets, adding independent MIX, normalization and its own optimizations. GPL-3.0-only notices and attribution are retained in CREDITS and LICENSING.
+
+This release promotes the SS3 implementation approved by Marcus on his SMK-37 Pro. DSP optimizations preserve numerical reference results. Eight ANALOG voices remain shared; UNISON stacks whole voices. SYNC and X-MOD are bypassed when either OSC uses SUPER. MIX is saved in presets, favourites, scenes and backups, with no dedicated CC/automation. DETUNE reuses PW and its automation. This is not an exact JP-8000/JP-8080 emulation.
+
+**Update** preserves the saved bank from SMKSYNTH 1.0.x or SUPER SS1/SS2/SS3; export a backup first. **Install** initializes the bank and requires official SMK-37 Pro V016. Public identity remains `SMK-37 Pro_19618`. Resume an interrupted older installation using its original installer first. Firmware predating SUPER cannot interpret its new sounds; retain a pre-SUPER backup for downgrades.
+
+USB audio from 1.0.2 is retained: stereo 16-bit, 44.1/48 kHz, tested on Mac and on iPhone with AudioShare. Known issue: iPhone video recordings using USB audio may contain clicks and dropouts.
+
+
+## 1.0.2 — 2026-11-04
+
+- Áudio USB estéreo 16 bits em 44,1/48 kHz, com a implementação validada na UA1. Testado por Marcus no Mac e no iPhone com AudioShare. JUMP/CATCH preservado.
+- Problema conhecido: a gravação de vídeo com áudio USB no iPhone pode apresentar cliques e pequenos cortes durante a reprodução, independentemente das trocas de patterns. Em investigação.
+- Stereo 16-bit USB audio at 44.1/48 kHz, using the UA1 implementation. Tested by Marcus on Mac and on iPhone with AudioShare. JUMP/CATCH retained.
+- Known issue: iPhone video recording using USB audio may contain clicks and brief dropouts during playback, independently of pattern changes. Under investigation.
+
+
+## 1.0.1 — 2026-11-04
+
+- GLOBAL: FADER MODE JUMP/CATCH. Em CATCH, o fader assume o parâmetro ao cruzar seu valor; a proteção é reativada ao mudar de contexto.
+- Encoders relativos com filtragem de transições inválidas e proteção contra deltas pendentes após mudanças de contexto.
+- Atualização direta do SMKSYNTH com preservação do banco.
+- USB dedicado a MIDI, backup/restauração e atualizações; áudio pela saída física. Diagnósticos de desenvolvimento removidos.
+
+### English
+
+- GLOBAL: FADER MODE JUMP/CATCH. CATCH engages when the fader crosses the current value and rearms when its context changes.
+- Relative encoders reject invalid transitions and stale deltas across context changes.
+- Direct SMKSYNTH update preserves the saved bank.
+- USB provides MIDI, backup/restore and firmware updates; record audio from the physical output. Development diagnostics removed.
+
+## 1.0.0 — preparação do lançamento · 2026-11-02
+
+- Base DP2 testada e aprovada no SMK‑37 Pro.
+- Cinco patterns com cenas completas e oito favoritos de Marcus Padrini.
+- Banco da base preservado; zero presets de usuário extras.
+- Instalação inicial a partir da M‑VAVE V016; identidade estrita e retomada vinculada ao pacote.
+- Simulador com o mesmo conteúdo; backup reconhece 19618.
+- README, créditos, guias, fontes, hashes e evidências.
+
+O pacote inicial foi validado em simulação. Primeira instalação física por USB ainda não confirmada. Checkpoints técnicos de origem permanecem documentados no repositório.
