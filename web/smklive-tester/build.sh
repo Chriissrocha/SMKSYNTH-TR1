@@ -7,4 +7,10 @@ CLANG=${CLANG:-clang}
 "$CLANG" --target=wasm32-unknown-unknown -mcpu=generic -mbulk-memory -O2 -DSMK_LIVE=1 -DSMK_SIM_STEP=1 '-DAPP_VER="LIVE-2"' \
  -ffreestanding -fno-builtin -nostdlib -Ifirmware/src -Ifirmware/gen -Wl,--no-entry -Wl,--export-memory -Wl,--export-dynamic -Wl,-z,stack-size=262144 \
  -o build/smklive-tester/smklive.wasm web/sim/sim.c
-python3 web/smklive-tester/bundle.py
+python3 - <<'PY'
+from pathlib import Path
+from base64 import b64encode
+src=Path('web/smklive-tester/template.html').read_text()
+wasm=Path('build/smklive-tester/smklive.wasm').read_bytes()
+Path('web/smklive-tester/index.html').write_text(src.replace('__WASM_BASE64__',b64encode(wasm).decode('ascii')))
+PY

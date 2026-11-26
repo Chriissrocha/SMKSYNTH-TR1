@@ -32,12 +32,4 @@ mkdir -p build/smklive-package
 out="build/smklive-package/SMKLIVE-1.3.1-live2-update-SMK37-$model.fwsc"
 cp "build/obervave-1.3.1-live2-$suffix.fwsc" "$out"
 (cd build/smklive-package && sha256sum "$(basename "$out")" > "$(basename "$out").sha256")
-python3 - "$out" "$1" "$model" "$id" <<'PYMANIFEST'
-from pathlib import Path
-import hashlib,json,sys
-p=Path(sys.argv[1]);model,display,identity=sys.argv[2:]
-raw=p.read_bytes()
-manifest={'schema':'smklive-update-v1','release':'1.3.1-live2','operation':'update','model':model,'product':f'SMK-37 {display}_{identity}','filename':p.name,'size':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
-p.with_suffix('.json').write_text(json.dumps(manifest,indent=2)+'\n')
-PYMANIFEST
 printf '\nGenerated experimental update: %s\nExpected identity: SMK-37 %s_%s\n' "$out" "$model" "$id"

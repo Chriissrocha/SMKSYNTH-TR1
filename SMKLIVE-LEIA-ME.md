@@ -1,6 +1,4 @@
-# SMKLIVE — perfil de performance ao vivo
-
-**Testador atualizado V2.1:** [MIDI, PC, GitHub Pages e instalador integrado](SMKLIVE-V2.1-STAGE-LAB.md).
+# SMKLIVE V2 — perfil de performance ao vivo
 
 **Versão experimental de código-fonte baseada no SMKSYNTH 1.3.1.** Alvo: M-VAVE SMK-37 Pro ou SMK-37 Elite. Os testes nativos foram executados; o pacote instalável ainda precisa ser compilado com o toolchain JieLi e validado no teclado. Não instale os arquivos `.fwsc` históricos pensando que são SMKLIVE.
 
@@ -11,10 +9,17 @@
 
 As imagens são renderizações do próprio firmware de 240 × 240 pixels, executado no host, não mockups.
 
+## Novo em V2: testador e quatro zonas
+
+- **Testador HTML offline:** abra `web/smklive-tester/index.html` no Edge/Chrome; é autocontido, inclui a compilação WebAssembly do código C e o framebuffer/LEDs do firmware. Clique Ativar áudio. Clique direito em SEQ para mantê-lo pressionado. O painel copia a disposição do manual SMK-37 Pro, não um modelo 3D ou uma reprodução fotográfica. O botão de testes cria uma instância independente do motor. Não conecta ao teclado, não grava flash física, não simula radio Bluetooth/recuperação USB e não mede ADC/aftertouch. O tempo de splash é acelerado e o power recria uma sessão limpa. O áudio do navegador não certifica latência/qualidade do hardware. Para reconstruir: `sh web/smklive-tester/build.sh` com Clang/wasm-ld e Python 3.
+- **Quatro partes simultâneas (zona independente):** segure SEQ e toque KNOB BANK para entrar/sair do novo banco 5 (também acessível pelo ciclo KNOB BANK). P1–4 ligam/desligam A–D; P5–8 selecionam A–D para edição; P9–12 escolhem o limite inferior da parte, P13–16 o superior; toque a tecla desejada para aprender o limite. A tecla usada para aprender não dispara som. K1/K2 ajustam os limites da parte selecionada; K3 restaura extensão completa; K4 liga (giro horário) ou desliga (anti-horário) o roteamento de zonas. As quatro faixas são inclusivas e podem se sobrepor para SPLIT+LAYER. Pitches físicos definem zonas antes de transposição e octave, que afetam a altura tocada. O modo permanece ativo ao sair da tela; K4 OFF retorna à configuração original (Single ou Split/Layer 2). As configurações novas são de sessão (RAM), **não são salvas em cenas, presets nem flash** nesta versão. Os formatos antigos permanecem íntegros. Com zero partes habilitadas a tecla não tem rota. O motor tem somente oito vozes compartilhadas; quatro layers podem consumir quatro ou mais vozes por tecla dependendo dos patches. Não alteramos a polifonia.
+- **FADER BANK C:** toque FADER BANK até C (A → B → C → A). Faders 1–4 comandam os volumes de A–D no mixer existente (0–127, 100 = ganho unitário), mesmo fora da página de mixer. CATCH usa a política original: cruze o alvo para evitar salto. O banco B e A mantêm suas funções. Volumes continuam pertencendo ao mixer original e podem ser salvos pelo mecanismo original. A configuração de roteamento por zonas é independente desse salvamento.
+- **Economia medida no host/WebAssembly:** o pool de 32 hits retirado equivale a 2.688 bytes no layout WASM; a ampliação da tabela de note-off acrescenta 768 bytes. Os binários WASM do perfil normal e LIVE V2 ficaram cerca de 836 kB e 726 kB, respectivamente (não são binários JieLi, e o valor inclui outras diferenças). A economia líquida de Flash/RAM do teclado exige o mapa do build JieLi; mantém-se o armazenamento antigo para compatibilidade. Não se promete aumento de polifonia. O manual do fabricante confirma aftertouch físico nos pads; sua leitura contínua não foi implementada aqui porque exige validar o HAL/ADC no instrumento.
+
 ## 1. Operação ao vivo
 
-- **Transpose global**: mantenha SEQ pressionado e gire K1 ou pressione ← / →. 25 posições: de −12 a +12 semitons, um semitom por detente. Ambos os botões de seta juntos retornam a 0 quando detectados no mesmo ciclo. O K1 retorna à função da página ao soltar SEQ. O transpose afeta o sintetizador interno, acumula com a oitava do timbre e de split/layer, e não altera os arquivos de timbre. As notas que já estavam pressionadas mantêm sua afinação até o note-off. Notas novas fora de 0–127 são descartadas, não limitadas à nota da borda. Reiniciar retorna o transpose a 0. O indicador TR aparece em todas as páginas do sintetizador com transpose ativo; no LIVE aparece também em zero. O modo independente de controlador MIDI não muda seu mapa nem usa o transpose do sintetizador.
-- **Toque curto em SEQ** (< 600 ms, sem usar o modificador): alterna entre o banco de performance/favoritos e o banco LIVE FX. Uma combinação com setas ou K1 não troca o banco. KNOB BANK continua navegando entre Performance/Favoritos → Split/Layer → Scenes/Patterns → LIVE FX → Performance/Favoritos. Um toque longo no KNOB BANK retorna ao primeiro banco.
+- **Transpose global**: mantenha SEQ pressionado e gire K1 ou pressione ← / →. 25 posições de −12 a +12 semitons, passo de 1 por seta ou detente do K1. Ambas as setas mantidas juntas retornam a 0. O K1 retorna à função da página ao soltar SEQ. O transpose afeta o sintetizador interno, acumula com a oitava do timbre e de split/layer, e não altera os arquivos de timbre. As notas que já estavam pressionadas mantêm sua afinação até o note-off. Notas novas fora de 0–127 são descartadas, não limitadas à nota da borda. Reiniciar retorna o transpose a 0. O indicador TR aparece em todas as páginas do sintetizador com transpose ativo; no LIVE aparece também em zero. O modo independente de controlador MIDI não muda seu mapa nem usa o transpose do sintetizador.
+- **Toque curto em SEQ** (< 600 ms, sem usar o modificador): alterna entre o banco de performance/favoritos e o banco LIVE FX. Uma combinação com setas ou K1 não troca o banco. KNOB BANK continua navegando entre Performance/Favoritos → Split/Layer → Scenes/Patterns → LIVE FX → 4 PART ZONES → Performance/Favoritos. Um toque longo no KNOB BANK retorna ao primeiro banco.
 - **PLAY**: PANIC (kill switch imediato pelo caminho existente). Também mantém o panic anterior GLOBE + PLAY. Libera notas, sustain e HOLD, encerra a reprodução e descarta eventos pendentes. Não apaga patches nem cenas. Não confundir com mute de uma parte. Em INITIALIZE, PLAY mantém sua ação de confirmação original; em telas modais, as ações de confirmação existentes têm prioridade.
 - **REC**: liga/desliga o envio de delay da parte selecionada; sem gravação nem apagar trilhas. No banco LIVE FX, as setas sem SEQ navegam pelos presets (exceto páginas dedicadas que possuem outra função para as setas, como Keyboard).
 - **Tema**: toque em GLOBE para circular pelas páginas globais até THEME. Gire K1 para escolher OBERVAVE / ZOOM / LIVE. Uma configuração de tema já salva é respeitada; sem preferência válida, o padrão é LIVE. O novo tema usa nomes grandes, identificação da parte, BPM na tela Perform, quatro parâmetros grandes, estado SINGLE/SPLIT/LAYER e medidores animados de envelope das vozes. As telas especializadas (Keyboard, MIDI, Controls, Tempo, Initialize, confirmação de salvamento) preservam o layout funcional e a indicação/acentos do tema; não removemos mensagens necessárias para operações de dados. Os temas antigos continuam disponíveis. Na tela Perform do tema LIVE, PATCH/HOME navega para o mixer, em vez de abrir a antiga tela de osciloscópio. Nos outros temas, o osciloscópio original permanece.
@@ -41,7 +46,7 @@ Efeitos: a ação alterna o send da parte e restaura o último nível do atalho 
 
 ### Compatibilidade e recursos retirados
 
-- DRUM-X não é registrado como motor disponível no perfil SMKLIVE, e o transporte do sequenciador/ENDLESS fica desativado. A interface não oferece seus modos de execução. Cenas/patterns permanecem para guardar e trocar timbres, layers e mixer. Os dados e tipos antigos foram preservados para compatibilidade e rollback, de modo que não se afirma uma redução específica de RAM ou latência antes do build/medição no hardware.
+- DRUM-X não é registrado como motor disponível no perfil SMKLIVE V2. O pool exclusivo de 32 hits e as rotinas de DSP de bateria foram excluídos da compilação LIVE. O transporte do sequenciador/ENDLESS e seu polling permanecem inativos. A interface não oferece seus modos de execução. Cenas/patterns permanecem para guardar e trocar timbres, layers e mixer. Os dados e tipos antigos foram preservados para compatibilidade e rollback, de modo que não se afirma uma redução específica de RAM ou latência antes do build/medição no hardware.
 - Um patch DRUM-X recuperado de armazenamento é apresentado como INIT ANA em RAM (não reproduz bateria). A versão antiga pode recuperar o patch original a partir do backup, desde que não tenha sido sobrescrito por um SAVE explícito. Exporte seu banco antes da atualização. O tamanho de patch (80 B), de pattern (14476 B) e de som/cena (380 B), a família de dados SMK16P1 e a geometria de flash original foram mantidos. O ajuste de tema utiliza os bytes reservados existentes do registro de mapas MIDI, não um novo setor. Os demais caminhos de persistência continuam manuais como na base.
 - A base de código, licenças, presets, instaladores e documentos anteriores foram mantidos. Os workflows de publicação antigos foram movidos para `.github/legacy-workflows/`, para não publicar binários SMKSYNTH como SMKLIVE. Nenhum instalador histórico aponta para o novo pacote.
 
@@ -64,8 +69,8 @@ Resultados esperados somente após build bem-sucedido:
 
 | Modelo | Identidade experimental | Arquivo em `build/smklive-package/` |
 | --- | --- | --- |
-| Pro | SMK-37 Pro_19701 | SMKLIVE-1.3.1-live-update-SMK37-Pro.fwsc |
-| Elite | SMK-37 Elite_19702 | SMKLIVE-1.3.1-live-update-SMK37-Elite.fwsc |
+| Pro | SMK-37 Pro_19701 | SMKLIVE-1.3.1-live2-update-SMK37-Pro.fwsc |
+| Elite | SMK-37 Elite_19702 | SMKLIVE-1.3.1-live2-update-SMK37-Elite.fwsc |
 
 Os IDs são específicos deste fork, selecionados para evitar reutilizar o ID 19668 da versão original. Não há garantia de aceitação do novo ID no instalador de terceiros. A geração usa o perfil de atualização `--voice-hardware` existente, sem `--first-install` nem seed de fábrica. O script original valida o mapa de memória, tamanho do binário, limites de RAM, loader e regiões privadas da flash. O arquivo `.sha256` acompanha o pacote. O binário final não foi gerado neste ambiente (JieLi/SDK ausentes).
 
@@ -80,7 +85,7 @@ Teste primeiro o USB RESCUE na versão original, sem operação pendente: deslig
 ### Critérios de validação antes de uso ao vivo
 
 - Boot normal, splash SMKLIVE e boot com OCT− mantido, incluindo USB detectado.
-- Pitch: todos os três estados e combinações físicas, soltura do botão durante giro de K1, mudança com acordes/sustain, split/layer, MIDI por parte, oitava original, extremos da faixa.
+- Pitch: todos os 25 estados e combinações físicas, soltura do botão durante giro de K1, mudança com acordes/sustain, split/layer, MIDI por parte, oitava original, extremos da faixa.
 - Todos os 16 pads e LEDs, alternância de bancos, troca de timbres, favoritas/cenas e restore, efeitos, mute, panic em áudio real e sustain.
 - As três aparências em todas as páginas, medidores em acordes, rapidez do painel e ausência de áudio entrecortado/overruns.
 - Após backup, teste o retorno à versão original e a restauração em unidade de teste. Não force a instalação ou recuperação de um modelo diferente.

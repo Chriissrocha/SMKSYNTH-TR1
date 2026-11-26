@@ -14,8 +14,6 @@ jobs:
         run: python3 -m pip install Pillow
       - name: Test SMKLIVE and legacy regression
         run: sh tests/run_smklive_tests.sh
-      - name: Web installer guards
-        run: node tests/smklive_web_install_test.mjs
       - name: Save actual LCD renders
         uses: actions/upload-artifact@v4
         with:
